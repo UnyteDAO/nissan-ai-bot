@@ -1,0 +1,38 @@
+{
+  "name": "dao-contribution-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for measuring DAO community member contributions using Claude AI",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "deploy-commands": "node src/utils/deployCommands.js",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "dao",
+    "contribution",
+    "claude",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.3",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^12.7.0",
+    "node-cron": "^3.0.3",
+    "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
