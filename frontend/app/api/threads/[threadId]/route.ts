@@ -4,10 +4,10 @@ import type { Thread, Evaluation } from '@/types';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { threadId: string } }
+  { params }: { params: Promise<{ threadId: string }> }
 ) {
   try {
-    const threadId = params.threadId;
+    const { threadId } = await params;
 
     // Get thread data
     const threadDoc = await db.collection('threads').doc(threadId).get();
