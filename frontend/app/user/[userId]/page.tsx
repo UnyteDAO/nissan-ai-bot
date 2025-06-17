@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ThreadDetail } from '@/components/ThreadDetail';
 import { ScoreChart } from '@/components/ScoreChart';
-import { ArrowLeft, Calendar } from 'lucide-react';
+import { ArrowLeft, Calendar, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import type { UserScore, Evaluation, Thread } from '@/types';
@@ -18,6 +18,11 @@ export default function UserDetailPage() {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [selectedThread, setSelectedThread] = useState<{ thread: Thread; evaluation: Evaluation } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (userId) {
@@ -25,6 +30,38 @@ export default function UserDetailPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  // Set up intersection observer for infinite scroll
+  useEffect(() => {
+    if (loading || loadingMore || !hasMore) return;
+
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadMoreEvaluations();
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '100px',
+      }
+    );
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, loadingMore, hasMore, page]);
 
   const fetchUserData = async () => {
     try {
@@ -36,16 +73,41 @@ export default function UserDetailPage() {
         setUserScore(user);
       }
 
-      // Fetch user evaluations
-      const evalResponse = await fetch(`/api/evaluations?userId=${userId}`);
+      // Fetch initial user evaluations
+      const evalResponse = await fetch(`/api/evaluations?userId=${userId}&page=0&limit=20`);
       const evalData = await evalResponse.json();
-      setEvaluations(evalData);
+      setEvaluations(evalData.evaluations || []);
+      setHasMore(evalData.hasMore || false);
+      setPage(0);
     } catch (error) {
       console.error('Failed to fetch user data:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  const loadMoreEvaluations = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const evalResponse = await fetch(`/api/evaluations?userId=${userId}&page=${nextPage}&limit=20`);
+      const evalData = await evalResponse.json();
+      
+      if (evalData.evaluations && evalData.evaluations.length > 0) {
+        setEvaluations(prev => [...prev, ...evalData.evaluations]);
+        setPage(nextPage);
+        setHasMore(evalData.hasMore || false);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error('Failed to load more evaluations:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [userId, page, hasMore, loadingMore]);
 
   const fetchThreadDetail = async (threadId: string) => {
     try {
@@ -173,6 +235,19 @@ export default function UserDetailPage() {
                     </div>
                   );
                 })}
+                
+                {/* Loading indicator for infinite scroll */}
+                <div ref={loadMoreRef} className="flex justify-center py-4">
+                  {loadingMore && (
+                    <div className="flex items-center space-x-2 text-gray-600">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>評価履歴を読み込み中...</span>
+                    </div>
+                  )}
+                  {!hasMore && evaluations.length > 0 && (
+                    <p className="text-gray-500">すべての評価履歴を表示しました</p>
+                  )}
+                </div>
               </div>
             )}
           </div>
