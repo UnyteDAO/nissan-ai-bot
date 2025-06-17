@@ -1,15 +1,15 @@
 # DAO Contribution Measurement Bot
 
-DAO貢献度測定ボット - Claude AIを使用してDiscordコミュニティメンバーの貢献を自動的に評価・追跡するシステム
+DAO貢献度測定ボット - Google Gemini AIを使用してDiscordコミュニティメンバーの貢献を自動的に評価・追跡するシステム
 
 ## 概要
 
-このプロジェクトは、DAOガバナンスをサポートするために設計された貢献度測定ボットです。Discord上での会話を分析し、Claude AI (Anthropic)を使用してメンバーの貢献を客観的に評価します。透明性の高い評価基準により、報酬分配や投票権の決定に活用できます。
+このプロジェクトは、DAOガバナンスをサポートするために設計された貢献度測定ボットです。Discord上での会話を分析し、Google Gemini AIを使用してメンバーの貢献を客観的に評価します。透明性の高い評価基準により、報酬分配や投票権の決定に活用できます。
 
 ## 主な機能
 
 ### 🤖 Discord Bot
-- **AI駆動の評価システム**: Claude 3 Opusモデルによる高度な会話分析
+- **AI駆動の評価システム**: Gemini 1.5 Flashモデルによる高度な会話分析
 - **4つの評価カテゴリ**:
   - コード貢献 (重み: 1.0)
   - ドキュメント貢献 (重み: 0.8)
@@ -38,7 +38,7 @@ DAO貢献度測定ボット - Claude AIを使用してDiscordコミュニティ�
 ### Backend (Discord Bot)
 - Node.js
 - Discord.js v14
-- Anthropic Claude AI SDK
+- Google Generative AI SDK
 - Firebase Admin SDK
 - Winston (ロギング)
 - node-cron (スケジューリング)
@@ -80,8 +80,9 @@ DAO貢献度測定ボット - Claude AIを使用してDiscordコミュニティ�
 DISCORD_TOKEN=your_discord_bot_token
 DISCORD_CLIENT_ID=your_discord_client_id
 DISCORD_GUILD_ID=your_discord_guild_id
-ANTHROPIC_API_KEY=your_claude_api_key
+GOOGLE_API_KEY=your_google_api_key
 FIREBASE_SERVICE_ACCOUNT=path_to_service_account.json
+GEMINI_MODEL=gemini-1.5-flash
 ```
 
 #### Frontend側 (.env.local)

@@ -21,7 +21,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.3",
+    "@google/generative-ai": "^0.24.1",
     "discord.js": "^14.14.1",
     "dotenv": "^16.4.5",
     "firebase-admin": "^12.7.0",

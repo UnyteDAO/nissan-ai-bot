@@ -60,9 +60,11 @@ class ApiLogModel {
         } : null,
         duration: duration || null,
         tokenUsage: tokenUsage || (response?.usage ? {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-          totalTokens: (response.usage.input_tokens || 0) + (response.usage.output_tokens || 0),
+          inputTokens: response.usage.input_tokens || response.usage.promptTokens || 0,
+          outputTokens: response.usage.output_tokens || response.usage.completionTokens || 0,
+          totalTokens: response.usage.total_tokens || response.usage.totalTokens || 
+                      ((response.usage.input_tokens || response.usage.promptTokens || 0) + 
+                       (response.usage.output_tokens || response.usage.completionTokens || 0)),
         } : null),
         metadata: metadata || {},
         timestamp: admin.firestore.FieldValue.serverTimestamp(),

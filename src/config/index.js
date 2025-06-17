@@ -5,8 +5,9 @@ const config = {
     token: process.env.DISCORD_BOT_TOKEN,
     clientId: process.env.DISCORD_CLIENT_ID,
   },
-  claude: {
-    apiKey: process.env.CLAUDE_API_KEY,
+  gemini: {
+    apiKey: process.env.GOOGLE_API_KEY,
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   },
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID,
@@ -42,7 +43,7 @@ const config = {
 const requiredConfig = [
   'discord.token',
   'discord.clientId',
-  'claude.apiKey',
+  'gemini.apiKey',
   'firebase.projectId',
   'firebase.clientEmail',
   'firebase.privateKey',

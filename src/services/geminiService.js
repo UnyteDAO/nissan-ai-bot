@@ -1,15 +1,14 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('../config');
 const logger = require('../utils/logger');
 const apiLogModel = require('../models/apiLog');
 const aiInstructionLogger = require('./aiInstructionLogger');
 
-class ClaudeService {
+class GeminiService {
   constructor() {
-    this.client = new Anthropic({
-      apiKey: config.claude.apiKey,
-    });
-    this.model = 'claude-3-opus-20240229';
+    this.genAI = new GoogleGenerativeAI(config.gemini.apiKey);
+    this.modelName = config.gemini.model || 'gemini-1.5-flash';
+    this.model = this.genAI.getGenerativeModel({ model: this.modelName });
     this.maxTokens = 4096;
   }
 
@@ -26,26 +25,28 @@ class ClaudeService {
       const prompt = this.buildEvaluationPrompt(thread);
       const systemPrompt = this.getSystemPrompt();
       
-      const request = {
-        model: this.model,
-        max_tokens: this.maxTokens,
+      // Combine system prompt and user prompt for Gemini
+      const fullPrompt = `${systemPrompt}
+
+${prompt}`;
+      
+      const generationConfig = {
         temperature: 0.2,
-        system: systemPrompt,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
+        maxOutputTokens: this.maxTokens,
       };
 
-      const response = await this.client.messages.create(request);
+      const result = await this.model.generateContent({
+        contents: [{ parts: [{ text: fullPrompt }] }],
+        generationConfig,
+      });
+      
+      const response = result.response;
       const duration = Date.now() - startTime;
 
       // Log the API call
       apiLogId = await apiLogModel.logApiCall({
         type: 'thread_evaluation',
-        model: this.model,
+        model: this.modelName,
         request: {
           system: systemPrompt,
           prompt: prompt,
@@ -53,9 +54,13 @@ class ClaudeService {
           temperature: 0.2,
         },
         response: {
-          content: response.content[0].text,
-          stop_reason: response.stop_reason,
-          usage: response.usage,
+          content: response.text(),
+          stop_reason: 'stop',
+          usage: {
+            promptTokens: result.response.usageMetadata?.promptTokenCount || 0,
+            completionTokens: result.response.usageMetadata?.candidatesTokenCount || 0,
+            totalTokens: result.response.usageMetadata?.totalTokenCount || 0,
+          },
         },
         duration: duration,
         metadata: {
@@ -66,7 +71,7 @@ class ClaudeService {
         },
       });
 
-      const evaluation = this.parseEvaluationResponse(response.content[0].text);
+      const evaluation = this.parseEvaluationResponse(response.text());
       
       // AI指示をログに記録（設定で有効な場合のみ）
       if (config.logging.enableAiInstructionLogging) {
@@ -74,7 +79,7 @@ class ClaudeService {
           await aiInstructionLogger.logInstruction({
             userId: thread.startedBy || 'system',
             instruction: prompt,
-            response: response.content[0].text,
+            response: response.text(),
             category: 'code',
             baseScore: evaluation.totalScore || 100,
             notes: `Thread evaluation for channel: ${thread.channelName}, participants: ${thread.participantCount}`
@@ -94,7 +99,7 @@ class ClaudeService {
       if (!apiLogId) {
         await apiLogModel.logApiCall({
           type: 'thread_evaluation',
-          model: this.model,
+          model: this.modelName,
           request: {
             threadId: thread.id,
           },
@@ -254,26 +259,28 @@ class ClaudeService {
       const prompt = this.buildSummaryPrompt(evaluations);
       const systemPrompt = 'あなたはDAO貢献度レポートを作成する専門家です。評価結果を分析し、わかりやすい要約を作成してください。';
       
-      const request = {
-        model: this.model,
-        max_tokens: this.maxTokens,
+      // Combine system prompt and user prompt for Gemini
+      const fullPrompt = `${systemPrompt}
+
+${prompt}`;
+      
+      const generationConfig = {
         temperature: 0.3,
-        system: systemPrompt,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
+        maxOutputTokens: this.maxTokens,
       };
 
-      const response = await this.client.messages.create(request);
+      const result = await this.model.generateContent({
+        contents: [{ parts: [{ text: fullPrompt }] }],
+        generationConfig,
+      });
+      
+      const response = result.response;
       const duration = Date.now() - startTime;
 
       // Log the API call
       await apiLogModel.logApiCall({
         type: 'summary_generation',
-        model: this.model,
+        model: this.modelName,
         request: {
           system: systemPrompt,
           prompt: prompt,
@@ -281,9 +288,13 @@ class ClaudeService {
           temperature: 0.3,
         },
         response: {
-          content: response.content[0].text,
-          stop_reason: response.stop_reason,
-          usage: response.usage,
+          content: response.text(),
+          stop_reason: 'stop',
+          usage: {
+            promptTokens: result.response.usageMetadata?.promptTokenCount || 0,
+            completionTokens: result.response.usageMetadata?.candidatesTokenCount || 0,
+            totalTokens: result.response.usageMetadata?.totalTokenCount || 0,
+          },
         },
         duration: duration,
         metadata: {
@@ -297,7 +308,7 @@ class ClaudeService {
           await aiInstructionLogger.logInstruction({
             userId: 'system',
             instruction: prompt,
-            response: response.content[0].text,
+            response: response.text(),
             category: 'documentation',
             baseScore: 100,
             notes: `Summary generation for ${evaluations.length} evaluations`
@@ -309,7 +320,7 @@ class ClaudeService {
       }
 
       return {
-        summary: response.content[0].text,
+        summary: response.text(),
         timestamp: new Date(),
       };
     } catch (error) {
@@ -318,7 +329,7 @@ class ClaudeService {
       // Log the failed API call
       await apiLogModel.logApiCall({
         type: 'summary_generation',
-        model: this.model,
+        model: this.modelName,
         request: {
           evaluationCount: evaluations.length,
         },
@@ -383,4 +394,4 @@ class ClaudeService {
   }
 }
 
-module.exports = new ClaudeService();
+module.exports = new GeminiService();

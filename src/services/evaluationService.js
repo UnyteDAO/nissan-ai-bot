@@ -1,5 +1,5 @@
 const messageService = require('./messageService');
-const claudeService = require('./claudeService');
+const geminiService = require('./geminiService');
 const evaluationModel = require('../models/evaluation');
 const apiLogModel = require('../models/apiLog');
 const logger = require('../utils/logger');
@@ -109,7 +109,7 @@ class EvaluationService {
           }
 
           // Evaluate thread with Claude
-          const evaluation = await claudeService.evaluateThread(thread);
+          const evaluation = await geminiService.evaluateThread(thread);
 
           // Save evaluation
           const evaluationId = await evaluationModel.saveEvaluation(threadId, evaluation);
@@ -160,7 +160,7 @@ class EvaluationService {
       const stats = await evaluationModel.getStatistics(startDate, endDate);
 
       // Generate AI summary
-      const aiSummary = await claudeService.generateSummary(evaluationResults);
+      const aiSummary = await geminiService.generateSummary(evaluationResults);
 
       // Save summary
       const summaryData = {
