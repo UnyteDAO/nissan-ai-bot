@@ -130,7 +130,7 @@ export default function SolutionSection() {
               古い貢献の価値を適切に減少させ、常に最新の活動を重視する公平な評価システム
             </p>
             <div className="p-4 bg-dark/50 rounded-lg font-mono text-sm">
-              <p className="text-accent mb-2">// 時間減衰式</p>
+              <p className="text-accent mb-2">{'//'} 時間減衰式</p>
               <p>value = originalScore × e^(-λ × days)</p>
               <p className="text-gray-400 mt-2">λ = 0.0001 (減衰係数)</p>
             </div>
