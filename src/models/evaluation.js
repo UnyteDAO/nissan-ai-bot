@@ -1,4 +1,5 @@
 const { admin } = require('../config/firebase');
+const userEvaluationModel = require('./userEvaluation');
 
 class EvaluationModel {
   constructor() {
@@ -17,6 +18,7 @@ class EvaluationModel {
    */
   initialize(db) {
     this.db = db;
+    userEvaluationModel.initialize(db);
   }
 
   /**
@@ -98,6 +100,24 @@ class EvaluationModel {
 
       // Update user scores
       await this.updateUserScores(evaluation.participants);
+
+      // Save user evaluation references for efficient querying
+      for (const [userId, userData] of Object.entries(evaluation.participants)) {
+        await userEvaluationModel.saveUserEvaluation(userId, docRef.id, {
+          threadId,
+          score: userData.score,
+          breakdown: {
+            technicalAdvice: userData.technicalAdvice || 0,
+            problemSolving: userData.problemSolving || 0,
+            feasibility: userData.feasibility || 0,
+            communication: userData.communication || 0,
+            deliverables: userData.deliverables || 0,
+            penalties: userData.penalties || 0,
+          },
+          comments: userData.comments || [],
+          createdAt: evaluationData.createdAt,
+        });
+      }
 
       return docRef.id;
     } catch (error) {

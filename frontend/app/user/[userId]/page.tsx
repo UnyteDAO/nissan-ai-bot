@@ -73,8 +73,8 @@ export default function UserDetailPage() {
         setUserScore(user);
       }
 
-      // Fetch initial user evaluations
-      const evalResponse = await fetch(`/api/evaluations?userId=${userId}&page=0&limit=20`);
+      // Fetch initial user evaluations using the new endpoint
+      const evalResponse = await fetch(`/api/evaluations/user/${userId}?page=0&limit=20`);
       const evalData = await evalResponse.json();
       setEvaluations(evalData.evaluations || []);
       setHasMore(evalData.hasMore || false);
@@ -92,7 +92,7 @@ export default function UserDetailPage() {
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const evalResponse = await fetch(`/api/evaluations?userId=${userId}&page=${nextPage}&limit=20`);
+      const evalResponse = await fetch(`/api/evaluations/user/${userId}?page=${nextPage}&limit=20`);
       const evalData = await evalResponse.json();
       
       if (evalData.evaluations && evalData.evaluations.length > 0) {

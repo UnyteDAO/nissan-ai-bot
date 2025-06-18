@@ -15,33 +15,62 @@ export async function GET(request: NextRequest) {
     // For pagination with userId filter, we need to fetch more documents
     // and filter in memory since Firestore doesn't support complex queries
     if (userId) {
-      // Fetch enough documents to ensure we can return the requested page after filtering
-      const bufferSize = (page + 1) * limit * 5; // Buffer to ensure enough results
-      const snapshot = await query.limit(bufferSize).get();
+      // Strategy: Fetch ALL evaluations for this user to ensure accurate pagination
+      // This is necessary because Firestore can't query nested fields in participants
+      const allEvaluations: Evaluation[] = [];
+      let lastDoc = null;
+      let hasMoreData = true;
       
-      // Filter evaluations where the user participated
-      const allUserEvaluations = snapshot.docs
-        .map(doc => ({
+      // Keep fetching until we have no more data
+      while (hasMoreData) {
+        let currentQuery = query.limit(500); // Larger batch size for efficiency
+        
+        if (lastDoc) {
+          currentQuery = currentQuery.startAfter(lastDoc);
+        }
+        
+        const snapshot = await currentQuery.get();
+        
+        if (snapshot.empty) {
+          hasMoreData = false;
+          break;
+        }
+        
+        const newEvaluations = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data() as Omit<Evaluation, 'id'>,
-        }))
-        .filter(evalDoc => 
-          evalDoc.evaluation.participants && 
-          evalDoc.evaluation.participants[userId] !== undefined
-        );
+        }));
+        
+        allEvaluations.push(...newEvaluations);
+        lastDoc = snapshot.docs[snapshot.docs.length - 1];
+        
+        // If we got less than limit, we've reached the end
+        if (snapshot.docs.length < 500) {
+          hasMoreData = false;
+        }
+      }
+      
+      // Filter evaluations where the user participated
+      const userEvaluations = allEvaluations.filter(evalDoc => 
+        evalDoc.evaluation.participants && 
+        evalDoc.evaluation.participants[userId] !== undefined
+      );
+      
+      console.log(`User ${userId}: Found ${userEvaluations.length} evaluations out of ${allEvaluations.length} total`);
       
       // Apply pagination to filtered results
       const startIndex = page * limit;
-      const paginatedEvaluations = allUserEvaluations.slice(startIndex, startIndex + limit);
+      const paginatedEvaluations = userEvaluations.slice(startIndex, startIndex + limit);
       
       // Check if there are more results
-      const hasMore = allUserEvaluations.length > startIndex + limit;
+      const hasMore = userEvaluations.length > startIndex + limit;
       
       return NextResponse.json({
         evaluations: paginatedEvaluations,
         hasMore,
         page,
-        limit
+        limit,
+        totalUserEvaluations: userEvaluations.length // Debug info
       });
     } else {
       // Without userId filter, we can use Firestore's pagination more efficiently
