@@ -1,21 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #fefefe;
+  --foreground: #1a1a1a;
   --card-background: #ffffff;
-  --card-foreground: #1e293b;
-  --primary: #6366f1;
+  --card-foreground: #2d2d2d;
+  --primary: #ff7f50;
+  --secondary: #ff1493;
   --primary-foreground: #ffffff;
-  --secondary: #e2e8f0;
-  --secondary-foreground: #475569;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #818cf8;
+  --secondary-foreground: #ffffff;
+  --gradient: linear-gradient(135deg, #ff7f50 0%, #ff1493 100%);
+  --gradient-hover: linear-gradient(135deg, #ff6b3d 0%, #ff0080 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(255, 127, 80, 0.1) 0%, rgba(255, 20, 147, 0.1) 100%);
+  --muted: #fef5f3;
+  --muted-foreground: #7d5858;
+  --accent: #ff5580;
   --accent-foreground: #ffffff;
-  --border: #e2e8f0;
-  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --border: rgba(255, 127, 80, 0.2);
+  --shadow: 0 1px 3px 0 rgba(255, 127, 80, 0.1), 0 1px 2px -1px rgba(255, 20, 147, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(255, 127, 80, 0.15), 0 4px 6px -4px rgba(255, 20, 147, 0.15);
+  --shadow-primary: rgba(255, 127, 80, 0.25);
+  --shadow-secondary: rgba(255, 20, 147, 0.25);
 }
 
 @theme inline {
@@ -31,6 +36,55 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   antialiased: true;
+  line-height: 1.6;
+}
+
+/* グラデーションテキスト用のユーティリティクラス */
+.gradient-text {
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+}
+
+/* グラデーションボーダー用のユーティリティクラス */
+.gradient-border {
+  position: relative;
+  background: var(--card-background);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: var(--gradient);
+  border-radius: inherit;
+  z-index: -1;
+}
+
+/* グラデーション背景 */
+.gradient-bg {
+  background: var(--gradient);
+  color: var(--primary-foreground);
+}
+
+/* ソフトグラデーション背景 */
+.gradient-bg-soft {
+  background: var(--gradient-soft);
+}
+
+/* ホバーエフェクト */
+.gradient-hover {
+  transition: all 0.3s ease;
+}
+
+.gradient-hover:hover {
+  background: var(--gradient-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px -4px var(--shadow-primary), 0 4px 8px -2px var(--shadow-secondary);
 }
 
 /* スクロールバーのスタイリング */
@@ -45,10 +99,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--muted-foreground);
+  background: var(--gradient);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--secondary-foreground);
+  background: var(--gradient-hover);
 }

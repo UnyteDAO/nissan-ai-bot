@@ -26,13 +26,13 @@ export default function HeroSection() {
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* 背景グラデーション */}
       <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-secondary/10 to-dark" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-secondary/20 to-dark" />
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
 
       {/* アニメーション背景要素 */}
       <motion.div
-        className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl"
+        className="absolute top-1/4 left-1/4 w-96 h-96 bg-gradient-to-br from-primary/30 to-secondary/20 rounded-full blur-3xl"
         animate={{
           x: [0, 50, 0],
           y: [0, -50, 0],
@@ -44,7 +44,7 @@ export default function HeroSection() {
         }}
       />
       <motion.div
-        className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-3xl"
+        className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-gradient-to-tr from-secondary/30 to-primary/20 rounded-full blur-3xl"
         animate={{
           x: [0, -50, 0],
           y: [0, 50, 0],
@@ -63,9 +63,9 @@ export default function HeroSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-effect mb-8"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-effect gradient-border mb-8"
           >
-            <HiSparkles className="text-yellow-400" />
+            <HiSparkles className="text-transparent bg-gradient-to-r from-primary to-secondary bg-clip-text" />
             <span className="text-sm font-medium">業界初！AI評価システム搭載</span>
           </motion.div>
 
@@ -99,15 +99,15 @@ export default function HeroSection() {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="flex justify-center gap-8 mb-12"
           >
-            <div className="flex items-center gap-2 text-gray-400">
+            <div className="flex items-center gap-2 text-gray-300 hover:text-primary transition-colors">
               <FaDiscord className="text-2xl" />
               <span>Discord対応</span>
             </div>
-            <div className="flex items-center gap-2 text-gray-400">
+            <div className="flex items-center gap-2 text-gray-300 hover:text-secondary transition-colors">
               <FaRobot className="text-2xl" />
               <span>AI自動評価</span>
             </div>
-            <div className="flex items-center gap-2 text-gray-400">
+            <div className="flex items-center gap-2 text-gray-300 hover:text-accent transition-colors">
               <FaChartLine className="text-2xl" />
               <span>リアルタイム分析</span>
             </div>
@@ -129,13 +129,13 @@ export default function HeroSection() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="メールアドレスを入力"
                     required
-                    className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-primary transition-colors"
+                    className="w-full px-6 py-4 glass-effect rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all gradient-border"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full px-8 py-4 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-lg hover-glow transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-8 py-4 gradient-bg text-white font-bold rounded-lg hover-glow transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed gradient-shadow hover:gradient-shadow-lg"
                 >
                   {isSubmitting ? (
                     <span className="flex items-center justify-center gap-2">
@@ -157,9 +157,9 @@ export default function HeroSection() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-6 bg-accent/20 border border-accent/40 rounded-lg"
+                className="p-6 glass-effect gradient-border rounded-lg gradient-shadow"
               >
-                <p className="text-accent font-bold text-lg mb-2">
+                <p className="gradient-text font-bold text-lg mb-2">
                   ✓ 登録ありがとうございます！
                 </p>
                 <p className="text-gray-300">

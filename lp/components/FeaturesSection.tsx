@@ -88,8 +88,8 @@ export default function FeaturesSection() {
                 onClick={() => setActiveFeature(feature.id)}
                 className={`p-6 rounded-xl cursor-pointer transition-all duration-300 ${
                   activeFeature === feature.id
-                    ? 'bg-gradient-to-r from-primary/20 to-secondary/20 border border-primary/40'
-                    : 'bg-gray-900/50 border border-gray-800 hover:border-gray-700'
+                    ? 'glass-effect gradient-border gradient-shadow'
+                    : 'glass-effect border border-gray-800 hover:border-primary/30'
                 }`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -97,7 +97,7 @@ export default function FeaturesSection() {
                 <div className="flex items-start gap-4">
                   <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
                     activeFeature === feature.id
-                      ? 'bg-gradient-to-r from-primary to-secondary'
+                      ? 'gradient-bg gradient-shadow'
                       : 'bg-gray-800'
                   }`}>
                     <feature.icon className="text-2xl text-white" />
@@ -115,7 +115,7 @@ export default function FeaturesSection() {
                       >
                         {feature.details.map((detail, idx) => (
                           <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
-                            <span className="text-accent mt-1">✓</span>
+                            <span className="text-transparent bg-gradient-to-r from-primary to-secondary bg-clip-text mt-1">✓</span>
                             <span>{detail}</span>
                           </li>
                         ))}
@@ -134,12 +134,12 @@ export default function FeaturesSection() {
             transition={{ duration: 0.6, delay: 0.4 }}
             className="relative"
           >
-            <div className="aspect-video rounded-2xl overflow-hidden glass-effect p-8">
+            <div className="aspect-video rounded-2xl overflow-hidden glass-effect gradient-border p-8">
               {/* ダッシュボードのモックアップ */}
               {activeFeature === 'dashboard' && (
                 <div className="h-full bg-gray-900/80 rounded-lg p-6">
                   <div className="mb-4">
-                    <div className="h-8 w-48 bg-gradient-to-r from-primary to-secondary rounded animate-pulse" />
+                    <div className="h-8 w-48 gradient-bg rounded animate-pulse gradient-shadow" />
                   </div>
                   <div className="grid grid-cols-3 gap-4 mb-6">
                     <div className="h-24 bg-gray-800 rounded-lg animate-pulse" />
@@ -159,11 +159,11 @@ export default function FeaturesSection() {
                       <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                       </svg>
-                      <div className="w-16 h-16 bg-primary rounded-full animate-pulse animation-delay-200" />
+                      <div className="w-16 h-16 gradient-bg rounded-full animate-pulse animation-delay-200 gradient-shadow" />
                       <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                       </svg>
-                      <div className="w-16 h-16 bg-accent rounded-full animate-pulse animation-delay-400" />
+                      <div className="w-16 h-16 bg-gradient-to-r from-secondary to-accent rounded-full animate-pulse animation-delay-400 gradient-shadow" />
                     </div>
                     <p className="text-gray-400">Discord → AI分析 → スコア算出</p>
                   </div>
@@ -181,15 +181,15 @@ export default function FeaturesSection() {
                     <p className="text-gray-300 ml-8">1. User123 - 850点</p>
                     <p className="text-gray-300 ml-8">2. User456 - 780点</p>
                     <p className="text-gray-300 ml-8">3. User789 - 720点</p>
-                    <div className="mt-4 h-2 bg-primary/50 rounded animate-pulse" />
+                    <div className="mt-4 h-2 bg-gradient-to-r from-primary/50 to-secondary/50 rounded animate-pulse" />
                   </div>
                 </div>
               )}
             </div>
 
             {/* 装飾 */}
-            <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/20 rounded-full blur-2xl" />
-            <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-secondary/20 rounded-full blur-2xl" />
+            <div className="absolute -top-4 -right-4 w-24 h-24 bg-gradient-to-br from-primary/30 to-secondary/20 rounded-full blur-2xl" />
+            <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-gradient-to-tr from-secondary/30 to-primary/20 rounded-full blur-2xl" />
           </motion.div>
         </div>
 
@@ -206,7 +206,7 @@ export default function FeaturesSection() {
             { title: '除外設定', desc: 'チャンネル単位で制御' },
             { title: 'エクスポート機能', desc: 'NFTデータ出力対応' }
           ].map((item, idx) => (
-            <div key={idx} className="p-6 rounded-xl bg-gray-900/50 border border-gray-800">
+            <div key={idx} className="p-6 rounded-xl glass-effect border border-gray-800 hover:border-primary/30 hover:gradient-shadow transition-all duration-300">
               <h4 className="font-bold mb-2">{item.title}</h4>
               <p className="text-sm text-gray-400">{item.desc}</p>
             </div>

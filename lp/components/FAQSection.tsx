@@ -75,7 +75,7 @@ export default function FAQSection() {
             >
               <button
                 onClick={() => toggleFAQ(index)}
-                className="w-full p-6 bg-gray-900/50 border border-gray-800 hover:border-gray-700 transition-all duration-300 text-left"
+                className="w-full p-6 glass-effect border border-gray-800 hover:border-primary/30 hover:gradient-shadow transition-all duration-300 text-left"
               >
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold pr-4">{faq.question}</h3>
@@ -84,7 +84,7 @@ export default function FAQSection() {
                     transition={{ duration: 0.3 }}
                     className="flex-shrink-0"
                   >
-                    <FaChevronDown className="text-primary" />
+                    <FaChevronDown className="gradient-text" />
                   </motion.div>
                 </div>
               </button>
@@ -98,7 +98,7 @@ export default function FAQSection() {
                 transition={{ duration: 0.3 }}
                 className="overflow-hidden"
               >
-                <div className="p-6 bg-gray-900/30 border-x border-b border-gray-800">
+                <div className="p-6 glass-effect border-x border-b border-gray-800">
                   <p className="text-gray-300 leading-relaxed">{faq.answer}</p>
                 </div>
               </motion.div>
@@ -116,7 +116,7 @@ export default function FAQSection() {
           <p className="text-gray-400 mb-4">
             その他のご質問がございましたら、お気軽にお問い合わせください
           </p>
-          <button className="px-8 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors">
+          <button className="px-8 py-3 glass-effect gradient-border hover:gradient-shadow text-white rounded-lg transition-all duration-300">
             お問い合わせはこちら
           </button>
         </motion.div>

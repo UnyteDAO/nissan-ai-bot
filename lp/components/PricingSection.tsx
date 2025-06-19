@@ -55,8 +55,8 @@ export default function PricingSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-500/20 border border-yellow-500/40 mb-6">
-            <FaStar className="text-yellow-400" />
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-effect gradient-border mb-6">
+            <FaStar className="text-transparent bg-gradient-to-r from-primary to-secondary bg-clip-text" />
             <span className="text-sm font-medium">期間限定オファー</span>
           </div>
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
@@ -75,7 +75,7 @@ export default function PricingSection() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="relative"
           >
-            <div className="p-8 rounded-2xl bg-gray-900/50 border border-gray-700 opacity-60">
+            <div className="p-8 rounded-2xl glass-effect border border-gray-700 opacity-60">
               <h3 className="text-2xl font-bold mb-2">通常価格</h3>
               <p className="text-gray-400 mb-6">リリース後の価格</p>
               <div className="mb-8">
@@ -109,14 +109,14 @@ export default function PricingSection() {
           >
             {/* おすすめバッジ */}
             <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-10">
-              <span className="px-4 py-1 bg-gradient-to-r from-primary to-secondary text-white text-sm font-bold rounded-full">
+              <span className="px-4 py-1 gradient-bg text-white text-sm font-bold rounded-full gradient-shadow">
                 おすすめ
               </span>
             </div>
 
-            <div className="p-8 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 border-2 border-primary">
+            <div className="p-8 rounded-2xl glass-effect gradient-border gradient-shadow-lg">
               <h3 className="text-2xl font-bold mb-2">プレオーダー価格</h3>
-              <p className="text-primary mb-6">今だけ40%OFF</p>
+              <p className="gradient-text mb-6">今だけ40%OFF</p>
               <div className="mb-8">
                 <p className="text-5xl font-bold gradient-text">
                   ¥29,800<span className="text-lg font-normal">/月</span>
@@ -135,15 +135,15 @@ export default function PricingSection() {
                     transition={{ duration: 0.4, delay: 0.4 + idx * 0.1 }}
                     className="flex items-center gap-3"
                   >
-                    <div className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
-                      <FaCheck className="text-accent text-xs" />
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center flex-shrink-0">
+                      <FaCheck className="text-white text-xs" />
                     </div>
                     <span>{benefit}</span>
                   </motion.div>
                 ))}
               </div>
 
-              <button className="w-full px-8 py-4 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-lg hover-glow transition-all duration-300">
+              <button className="w-full px-8 py-4 gradient-bg text-white font-bold rounded-lg hover-glow transition-all duration-300 gradient-shadow hover:gradient-shadow-lg">
                 今すぐ申し込む
               </button>
             </div>
@@ -155,16 +155,16 @@ export default function PricingSection() {
           initial={{ opacity: 0, y: 30 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6, delay: 0.6 }}
-          className="mt-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/30 max-w-3xl mx-auto"
+          className="mt-12 p-6 rounded-2xl glass-effect gradient-border max-w-3xl mx-auto gradient-shadow"
         >
           <div className="flex items-center justify-center gap-3 mb-4">
-            <FaClock className="text-2xl text-red-400" />
+            <FaClock className="text-2xl gradient-text" />
             <h3 className="text-xl font-bold">プレオーダー終了まで</h3>
           </div>
           <div className="grid grid-cols-4 gap-4">
             {Object.entries(timeLeft).map(([unit, value]) => (
               <div key={unit} className="text-center">
-                <div className="text-3xl font-bold text-red-400">
+                <div className="text-3xl font-bold gradient-text">
                   {value.toString().padStart(2, '0')}
                 </div>
                 <p className="text-sm text-gray-400">
@@ -182,22 +182,22 @@ export default function PricingSection() {
           transition={{ duration: 0.6, delay: 0.8 }}
           className="mt-16 grid md:grid-cols-3 gap-6"
         >
-          <div className="p-6 rounded-xl bg-gray-900/50 border border-gray-800">
-            <FaGift className="text-3xl text-primary mb-4" />
+          <div className="p-6 rounded-xl glass-effect border border-gray-800 hover:border-primary/30 hover:gradient-shadow transition-all duration-300">
+            <FaGift className="text-3xl gradient-text mb-4" />
             <h4 className="font-bold mb-2">初期設定サポート</h4>
             <p className="text-sm text-gray-400">
               専門スタッフが設定を完全サポート。最短1日で運用開始。
             </p>
           </div>
-          <div className="p-6 rounded-xl bg-gray-900/50 border border-gray-800">
-            <FaStar className="text-3xl text-yellow-400 mb-4" />
+          <div className="p-6 rounded-xl glass-effect border border-gray-800 hover:border-primary/30 hover:gradient-shadow transition-all duration-300">
+            <FaStar className="text-3xl gradient-text mb-4" />
             <h4 className="font-bold mb-2">優先サポート</h4>
             <p className="text-sm text-gray-400">
               専用のサポートチャンネルで、迅速な対応を保証。
             </p>
           </div>
-          <div className="p-6 rounded-xl bg-gray-900/50 border border-gray-800">
-            <FaCheck className="text-3xl text-accent mb-4" />
+          <div className="p-6 rounded-xl glass-effect border border-gray-800 hover:border-primary/30 hover:gradient-shadow transition-all duration-300">
+            <FaCheck className="text-3xl gradient-text mb-4" />
             <h4 className="font-bold mb-2">返金保証</h4>
             <p className="text-sm text-gray-400">
               30日間お試しいただき、満足いただけない場合は全額返金。

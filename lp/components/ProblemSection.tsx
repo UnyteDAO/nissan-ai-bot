@@ -94,10 +94,10 @@ export default function ProblemSection() {
               variants={itemVariants}
               className="relative group"
             >
-              <div className="h-full p-8 rounded-2xl bg-gradient-to-b from-gray-900 to-gray-800 border border-gray-700 hover:border-primary/50 transition-all duration-300 flex flex-col">
+              <div className="h-full p-8 rounded-2xl glass-effect gradient-border hover:gradient-shadow transition-all duration-300 flex flex-col">
                 {/* アイコン */}
-                <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <problem.icon className="text-3xl text-red-400" />
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <problem.icon className="text-3xl gradient-text" />
                 </div>
 
                 {/* タイトル */}
@@ -112,14 +112,14 @@ export default function ProblemSection() {
                 <ul className="space-y-3 flex-grow">
                   {problem.points.map((point, idx) => (
                     <li key={idx} className="flex items-start gap-3">
-                      <span className="text-red-400 mt-1 flex-shrink-0">✗</span>
+                      <span className="text-secondary mt-1 flex-shrink-0">✗</span>
                       <span className="text-gray-300">{point}</span>
                     </li>
                   ))}
                 </ul>
 
                 {/* 背景装飾 */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -z-10" />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full blur-3xl -z-10" />
               </div>
             </motion.div>
           ))}
@@ -130,19 +130,19 @@ export default function ProblemSection() {
           initial={{ opacity: 0, y: 30 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6, delay: 0.8 }}
-          className="mt-16 p-8 rounded-2xl bg-red-500/10 border border-red-500/20"
+          className="mt-16 p-8 rounded-2xl glass-effect gradient-border gradient-shadow"
         >
           <div className="grid md:grid-cols-3 gap-8 text-center">
             <div>
-              <p className="text-4xl font-bold text-red-400 mb-2">87%</p>
+              <p className="text-4xl font-bold gradient-text mb-2">87%</p>
               <p className="text-gray-300">の運営者が評価に課題</p>
             </div>
             <div>
-              <p className="text-4xl font-bold text-red-400 mb-2">週10時間</p>
+              <p className="text-4xl font-bold gradient-text mb-2">週10時間</p>
               <p className="text-gray-300">平均的な評価作業時間</p>
             </div>
             <div>
-              <p className="text-4xl font-bold text-red-400 mb-2">45%</p>
+              <p className="text-4xl font-bold gradient-text mb-2">45%</p>
               <p className="text-gray-300">が不公平を理由に離脱</p>
             </div>
           </div>

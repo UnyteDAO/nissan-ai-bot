@@ -8,11 +8,15 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#6366F1',
-        secondary: '#8B5CF6',
-        accent: '#10B981',
-        dark: '#0F172A',
-        darker: '#020617',
+        primary: '#ff7f50',
+        secondary: '#ff1493',
+        accent: '#ff5580',
+        dark: '#1a0d13',
+        darker: '#0d0509',
+        'primary-light': '#ffab8a',
+        'secondary-light': '#ff69b4',
+        'gradient-start': '#ff7f50',
+        'gradient-end': '#ff1493',
       },
       animation: {
         'fade-in': 'fadeIn 1s ease-in-out',

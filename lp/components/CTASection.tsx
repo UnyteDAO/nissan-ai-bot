@@ -11,10 +11,10 @@ export default function CTASection() {
   });
 
   return (
-    <section className="section-padding bg-gradient-to-b from-dark via-primary/10 to-dark relative overflow-hidden" ref={ref}>
+    <section className="section-padding bg-gradient-to-b from-dark via-dark to-dark relative overflow-hidden" ref={ref}>
       {/* 背景装飾 */}
       <div className="absolute inset-0">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] bg-primary/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] bg-gradient-to-br from-primary/30 to-secondary/30 rounded-full blur-3xl" />
       </div>
 
       <div className="max-width relative z-10">
@@ -38,7 +38,7 @@ export default function CTASection() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="px-8 py-4 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-lg hover-glow transition-all duration-300 flex items-center justify-center gap-3 group"
+              className="px-8 py-4 gradient-bg text-white font-bold rounded-lg hover-glow transition-all duration-300 flex items-center justify-center gap-3 group gradient-shadow hover:gradient-shadow-lg"
             >
               無料で始める（30日間）
               <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
@@ -47,7 +47,7 @@ export default function CTASection() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="px-8 py-4 bg-white/10 backdrop-blur-md text-white font-bold rounded-lg hover:bg-white/20 transition-all duration-300 border border-white/20"
+              className="px-8 py-4 glass-effect text-white font-bold rounded-lg hover:gradient-shadow transition-all duration-300 gradient-border"
             >
               資料をダウンロード
             </motion.button>
@@ -56,15 +56,15 @@ export default function CTASection() {
           {/* 信頼性バッジ */}
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-400">
             <div className="flex items-center gap-2">
-              <FaLock className="text-accent" />
+              <FaLock className="gradient-text" />
               <span>SSL暗号化通信</span>
             </div>
             <div className="flex items-center gap-2">
-              <FaCreditCard className="text-accent" />
+              <FaCreditCard className="gradient-text" />
               <span>クレジットカード不要</span>
             </div>
             <div className="flex items-center gap-2">
-              <FaEnvelope className="text-accent" />
+              <FaEnvelope className="gradient-text" />
               <span>1分で登録完了</span>
             </div>
           </div>
@@ -74,11 +74,11 @@ export default function CTASection() {
             initial={{ opacity: 0 }}
             animate={inView ? { opacity: 1 } : {}}
             transition={{ duration: 0.6, delay: 0.4 }}
-            className="mt-16 p-6 rounded-xl bg-yellow-500/10 border border-yellow-500/30 max-w-2xl mx-auto"
+            className="mt-16 p-6 rounded-xl glass-effect gradient-border max-w-2xl mx-auto gradient-shadow"
           >
-            <p className="text-yellow-400 font-bold mb-2">P.S.</p>
+            <p className="gradient-text font-bold mb-2">P.S.</p>
             <p className="text-gray-300">
-              プレオーダー特典は<span className="text-yellow-400 font-bold">先着100社限定</span>です。
+              プレオーダー特典は<span className="gradient-text font-bold">先着100社限定</span>です。
               <br />
               この機会をお見逃しなく。
             </p>

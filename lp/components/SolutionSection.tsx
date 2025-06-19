@@ -36,7 +36,7 @@ export default function SolutionSection() {
     <section className="section-padding relative overflow-hidden" ref={ref}>
       {/* 背景装飾 */}
       <div className="absolute inset-0">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br from-primary/20 to-secondary/20 rounded-full blur-3xl" />
       </div>
 
       <div className="max-width relative z-10">
@@ -46,8 +46,8 @@ export default function SolutionSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/20 border border-primary/40 mb-6">
-            <FaTrophy className="text-yellow-400" />
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-effect gradient-border mb-6">
+            <FaTrophy className="text-transparent bg-gradient-to-r from-primary to-secondary bg-clip-text" />
             <span className="text-sm font-medium">業界初！Google Gemini AI搭載</span>
           </div>
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
@@ -68,14 +68,14 @@ export default function SolutionSection() {
               transition={{ duration: 0.6, delay: index * 0.1 }}
               className="group"
             >
-              <div className="h-full p-8 rounded-2xl glass-effect hover:bg-white/20 transition-all duration-300 flex flex-col">
+              <div className="h-full p-8 rounded-2xl glass-effect gradient-border hover:gradient-shadow transition-all duration-300 flex flex-col">
                 {/* アイコン */}
-                <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-primary to-secondary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <div className="w-16 h-16 rounded-xl gradient-bg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform gradient-shadow">
                   <solution.icon className="text-3xl text-white" />
                 </div>
 
                 <h3 className="text-2xl font-bold mb-2">{solution.title}</h3>
-                <p className="text-primary font-medium mb-4">{solution.description}</p>
+                <p className="gradient-text font-medium mb-4">{solution.description}</p>
                 <p className="text-gray-300 flex-grow">{solution.details}</p>
               </div>
             </motion.div>
@@ -90,47 +90,47 @@ export default function SolutionSection() {
           className="grid md:grid-cols-2 gap-8"
         >
           {/* スコアリングシステム */}
-          <div className="p-8 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30">
+          <div className="p-8 rounded-2xl glass-effect gradient-border gradient-shadow">
             <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-              <HiLightningBolt className="text-yellow-400" />
+              <HiLightningBolt className="text-transparent bg-gradient-to-r from-primary to-secondary bg-clip-text" />
               高度なスコアリングシステム
             </h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center p-3 bg-dark/50 rounded-lg">
                 <span>技術的アドバイス</span>
-                <span className="font-bold text-primary">0-25点</span>
+                <span className="font-bold gradient-text">0-25点</span>
               </div>
               <div className="flex justify-between items-center p-3 bg-dark/50 rounded-lg">
                 <span>問題解決</span>
-                <span className="font-bold text-primary">0-25点</span>
+                <span className="font-bold gradient-text">0-25点</span>
               </div>
               <div className="flex justify-between items-center p-3 bg-dark/50 rounded-lg">
                 <span>実現可能性</span>
-                <span className="font-bold text-primary">0-20点</span>
+                <span className="font-bold gradient-text">0-20点</span>
               </div>
               <div className="flex justify-between items-center p-3 bg-dark/50 rounded-lg">
                 <span>コミュニケーション</span>
-                <span className="font-bold text-primary">0-20点</span>
+                <span className="font-bold gradient-text">0-20点</span>
               </div>
               <div className="flex justify-between items-center p-3 bg-dark/50 rounded-lg">
                 <span>成果物</span>
-                <span className="font-bold text-primary">0-10点</span>
+                <span className="font-bold gradient-text">0-10点</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-red-500/20 rounded-lg">
+              <div className="flex justify-between items-center p-3 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-lg">
                 <span>ペナルティ</span>
-                <span className="font-bold text-red-400">-5～-20点</span>
+                <span className="font-bold text-secondary">-5～-20点</span>
               </div>
             </div>
           </div>
 
           {/* 時間減衰アルゴリズム */}
-          <div className="p-8 rounded-2xl bg-gradient-to-br from-secondary/20 to-primary/20 border border-secondary/30">
+          <div className="p-8 rounded-2xl glass-effect gradient-border gradient-shadow">
             <h3 className="text-2xl font-bold mb-6">時間減衰アルゴリズム</h3>
             <p className="text-gray-300 mb-4">
               古い貢献の価値を適切に減少させ、常に最新の活動を重視する公平な評価システム
             </p>
             <div className="p-4 bg-dark/50 rounded-lg font-mono text-sm">
-              <p className="text-accent mb-2">{'//'} 時間減衰式</p>
+              <p className="gradient-text mb-2">{'//'} 時間減衰式</p>
               <p>value = originalScore × e^(-λ × days)</p>
               <p className="text-gray-400 mt-2">λ = 0.0001 (減衰係数)</p>
             </div>
