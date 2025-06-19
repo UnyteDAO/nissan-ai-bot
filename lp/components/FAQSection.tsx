@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import { useState } from 'react';
 import { FaChevronDown } from 'react-icons/fa';
+import { useModal } from '@/contexts/ModalContext';
 
 const faqs = [
   {
@@ -42,6 +43,7 @@ export default function FAQSection() {
     triggerOnce: true,
   });
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const { openContactForm } = useModal();
 
   const toggleFAQ = (index: number) => {
     setOpenIndex(openIndex === index ? null : index);
@@ -116,7 +118,10 @@ export default function FAQSection() {
           <p className="text-gray-400 mb-4">
             その他のご質問がございましたら、お気軽にお問い合わせください
           </p>
-          <button className="px-8 py-3 glass-effect gradient-border hover:gradient-shadow text-white rounded-lg transition-all duration-300">
+          <button 
+            onClick={openContactForm}
+            className="px-8 py-3 glass-effect gradient-border hover:gradient-shadow text-white rounded-lg transition-all duration-300"
+          >
             お問い合わせはこちら
           </button>
         </motion.div>

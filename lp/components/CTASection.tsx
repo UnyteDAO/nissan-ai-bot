@@ -3,12 +3,14 @@
 import { motion } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import { FaLock, FaCreditCard, FaEnvelope, FaArrowRight } from 'react-icons/fa';
+import { useModal } from '@/contexts/ModalContext';
 
 export default function CTASection() {
   const { ref, inView } = useInView({
     threshold: 0.1,
     triggerOnce: true,
   });
+  const { openContactForm } = useModal();
 
   return (
     <section className="section-padding bg-gradient-to-b from-dark via-dark to-dark relative overflow-hidden" ref={ref}>
@@ -38,6 +40,7 @@ export default function CTASection() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={openContactForm}
               className="px-8 py-4 gradient-bg text-white font-bold rounded-lg hover-glow transition-all duration-300 flex items-center justify-center gap-3 group gradient-shadow hover:gradient-shadow-lg"
             >
               無料で始める（30日間）

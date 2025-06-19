@@ -4,12 +4,14 @@ import { motion } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import { useState, useEffect } from 'react';
 import { FaCheck, FaClock, FaGift, FaStar } from 'react-icons/fa';
+import { useModal } from '@/contexts/ModalContext';
 
 export default function PricingSection() {
   const { ref, inView } = useInView({
     threshold: 0.1,
     triggerOnce: true,
   });
+  const { openContactForm } = useModal();
 
   // カウントダウンタイマー
   const [timeLeft, setTimeLeft] = useState({
@@ -143,7 +145,10 @@ export default function PricingSection() {
                 ))}
               </div>
 
-              <button className="w-full px-8 py-4 gradient-bg text-white font-bold rounded-lg hover-glow transition-all duration-300 gradient-shadow hover:gradient-shadow-lg">
+              <button 
+                onClick={openContactForm}
+                className="w-full px-8 py-4 gradient-bg text-white font-bold rounded-lg hover-glow transition-all duration-300 gradient-shadow hover:gradient-shadow-lg"
+              >
                 今すぐ申し込む
               </button>
             </div>

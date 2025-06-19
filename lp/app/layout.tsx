@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { ModalProvider } from '@/contexts/ModalContext'
+import ClientModal from '@/components/ClientModal'
 
 export const metadata: Metadata = {
   title: 'DAO貢献度測定ボット - AIが公平に評価する次世代Discord運営ツール',
@@ -26,7 +28,10 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body className="min-h-screen antialiased" style={{ backgroundColor: '#0F172A', color: '#f3f4f6' }}>
-        {children}
+        <ModalProvider>
+          {children}
+          <ClientModal />
+        </ModalProvider>
       </body>
     </html>
   )
