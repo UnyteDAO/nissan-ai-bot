@@ -20,16 +20,16 @@ class GeminiService {
   async evaluateThread(thread) {
     const startTime = Date.now();
     let apiLogId = null;
-    
+
     try {
       const prompt = this.buildEvaluationPrompt(thread);
       const systemPrompt = this.getSystemPrompt();
-      
+
       // Combine system prompt and user prompt for Gemini
       const fullPrompt = `${systemPrompt}
 
 ${prompt}`;
-      
+
       const generationConfig = {
         temperature: 0.2,
         maxOutputTokens: this.maxTokens,
@@ -39,7 +39,7 @@ ${prompt}`;
         contents: [{ parts: [{ text: fullPrompt }] }],
         generationConfig,
       });
-      
+
       const response = result.response;
       const duration = Date.now() - startTime;
 
@@ -72,7 +72,7 @@ ${prompt}`;
       });
 
       const evaluation = this.parseEvaluationResponse(response.text());
-      
+
       // AI指示をログに記録（設定で有効な場合のみ）
       if (config.logging.enableAiInstructionLogging) {
         try {
@@ -89,12 +89,12 @@ ${prompt}`;
           // ログエラーでも評価は続行
         }
       }
-      
+
       logger.info(`Thread ${thread.id} evaluated successfully`);
       return evaluation;
     } catch (error) {
       logger.error(`Error evaluating thread ${thread.id}:`, error);
-      
+
       // Log the failed API call
       if (!apiLogId) {
         await apiLogModel.logApiCall({
@@ -111,7 +111,7 @@ ${prompt}`;
           },
         });
       }
-      
+
       throw error;
     }
   }
@@ -201,7 +201,7 @@ ${prompt}`;
       // Use the first captured group that is not null
       const jsonString = jsonMatch[1] || jsonMatch[2];
       const parsed = JSON.parse(jsonString);
-      
+
       // Ensure required fields exist
       const evaluation = {
         participants: {},
@@ -233,7 +233,7 @@ ${prompt}`;
     } catch (error) {
       logger.error('Error parsing Claude response:', error);
       logger.debug('Raw response:', response);
-      
+
       // Return a default structure if parsing fails
       return {
         participants: {},
@@ -254,16 +254,16 @@ ${prompt}`;
    */
   async generateSummary(evaluations) {
     const startTime = Date.now();
-    
+
     try {
       const prompt = this.buildSummaryPrompt(evaluations);
       const systemPrompt = 'あなたはDAO貢献度レポートを作成する専門家です。評価結果を分析し、わかりやすい要約を作成してください。';
-      
+
       // Combine system prompt and user prompt for Gemini
       const fullPrompt = `${systemPrompt}
 
 ${prompt}`;
-      
+
       const generationConfig = {
         temperature: 0.3,
         maxOutputTokens: this.maxTokens,
@@ -273,7 +273,7 @@ ${prompt}`;
         contents: [{ parts: [{ text: fullPrompt }] }],
         generationConfig,
       });
-      
+
       const response = result.response;
       const duration = Date.now() - startTime;
 
@@ -325,7 +325,7 @@ ${prompt}`;
       };
     } catch (error) {
       logger.error('Error generating summary:', error);
-      
+
       // Log the failed API call
       await apiLogModel.logApiCall({
         type: 'summary_generation',
@@ -336,7 +336,7 @@ ${prompt}`;
         error: error,
         duration: Date.now() - startTime,
       });
-      
+
       throw error;
     }
   }
@@ -356,7 +356,7 @@ ${prompt}`;
 
     for (const evalResult of evaluations) {
       totalMessages += evalResult.thread.messageCount;
-      
+
       for (const [userId, data] of Object.entries(evalResult.evaluation.participants)) {
         if (!userScores[userId]) {
           userScores[userId] = {
@@ -391,6 +391,84 @@ ${prompt}`;
     prompt += `5. 次回に向けての提案`;
 
     return prompt;
+  }
+
+  /**
+   * Generate a brief channel summary (<=3 lines) from raw messages
+   * @param {Object} params
+   * @param {string} params.channelName
+   * @param {string} params.jstDateLabel - YYYYMMDD
+   * @param {Array<{timestamp:string, authorName:string, content:string, threadName?:string}>} params.messages
+   * @returns {Promise<string>} summary text (<=3 lines)
+   */
+  async generateChannelSummary({ channelName, jstDateLabel, messages }) {
+    const startTime = Date.now();
+    try {
+      const systemPrompt = `あなたはコミュニティのモデレーターです。与えられたチャンネルの会話ログを読み、以下の指示に従って日本語で簡潔にまとめてください。
+      指示:
+      - どのような会話や議論があったかを文章で記述すること
+      - 雑談などは特に反応が多く、盛り上がった話題をピックアップして簡単に経緯をまとめて記述すること
+      - 全体の流れは時系列に沿って記述すること
+      - その日のチャンネルの様子をわかりやすくまとめて締めくくること
+      - ひと続きの文章で300字以内で記述すること
+      - 出力はすべて日本語で英語を含めないこと
+      - どのような場合でも絵文字は使わないこと
+      - 前置きや免責は含めないこと
+      - URLや長い引用は省略すること`;
+      let prompt = `対象チャンネル: ${channelName}\n対象日 (JST): ${jstDateLabel}\n\n`;
+      prompt += '以下は会話の抜粋です。内容をまとめてください。\n';
+      prompt += '会話ログ:\n';
+      for (const m of messages) {
+        const threadSuffix = m.threadName ? ` [${m.threadName}]` : '';
+        const line = `[${m.timestamp}] ${m.authorName}${threadSuffix}: ${m.content}`;
+        // 1行の長さをある程度抑制
+        prompt += `${line.substring(0, 500)}\n`;
+      }
+
+      const generationConfig = { temperature: 0.3, maxOutputTokens: Math.min(this.maxTokens, 512) };
+      const result = await this.model.generateContent({
+        contents: [{ parts: [{ text: `${systemPrompt}\n\n${prompt}` }] }],
+        generationConfig,
+      });
+
+      const response = result.response;
+      const text = (response?.text?.() || '').trim();
+
+      // APIログ
+      await apiLogModel.logApiCall({
+        type: 'log_summary',
+        model: this.modelName,
+        request: {
+          system: systemPrompt,
+          prompt,
+          max_tokens: generationConfig.maxOutputTokens,
+          temperature: generationConfig.temperature,
+        },
+        response: {
+          content: text,
+          usage: {
+            promptTokens: result.response.usageMetadata?.promptTokenCount || 0,
+            completionTokens: result.response.usageMetadata?.candidatesTokenCount || 0,
+            totalTokens: result.response.usageMetadata?.totalTokenCount || 0,
+          },
+        },
+        duration: Date.now() - startTime,
+        metadata: { channelName, jstDateLabel, messagesSampled: messages.length },
+      });
+
+      return text || '要約対象の会話が少なく、特筆事項はありませんでした';
+    } catch (error) {
+      logger.error('Error generating channel summary:', error);
+      // 失敗ログ
+      await apiLogModel.logApiCall({
+        type: 'log_summary',
+        model: this.modelName,
+        request: { channelName, jstDateLabel },
+        error,
+        duration: Date.now() - startTime,
+      });
+      throw error;
+    }
   }
 }
 

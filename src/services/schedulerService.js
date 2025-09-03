@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const evaluationService = require('./evaluationService');
 const logExportService = require('./logExportService');
+const logSummaryService = require('./logSummaryService');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -9,6 +10,7 @@ class SchedulerService {
     this.client = null;
     this.scheduledTask = null;
     this.logsTask = null;
+    this.logsSummaryTask = null;
   }
 
   /**
@@ -19,6 +21,7 @@ class SchedulerService {
     this.client = client;
     this.setupScheduledEvaluation();
     this.setupScheduledLogExport();
+    this.setupScheduledLogSummary();
     logger.info(`Scheduler initialized with cron pattern: ${config.cron.schedule}`);
   }
 
@@ -62,6 +65,25 @@ class SchedulerService {
     });
 
     logger.info('Daily log export scheduled at 18:00 JST');
+  }
+
+  /**
+   * Setup scheduled daily log summary at 19:00 JST (configurable)
+   */
+  setupScheduledLogSummary() {
+    if (this.logsSummaryTask) {
+      this.logsSummaryTask.stop();
+    }
+
+    this.logsSummaryTask = cron.schedule('0 19 * * *', async () => {
+      logger.info('Starting scheduled daily log summary...');
+      await this.runDailyLogSummary();
+    }, {
+      scheduled: true,
+      timezone: 'Asia/Tokyo'
+    });
+
+    logger.info('Daily log summary scheduled at 19:00 JST');
   }
 
   /**
@@ -251,6 +273,10 @@ class SchedulerService {
       this.logsTask.stop();
       logger.info('Log export scheduler stopped');
     }
+    if (this.logsSummaryTask) {
+      this.logsSummaryTask.stop();
+      logger.info('Log summary scheduler stopped');
+    }
   }
 
   /**
@@ -269,6 +295,17 @@ class SchedulerService {
       await logExportService.exportPreviousDayAndSend(this.client);
     } catch (error) {
       logger.error('Error in daily log export:', error);
+    }
+  }
+
+  /**
+   * Run daily log summary job
+   */
+  async runDailyLogSummary() {
+    try {
+      await logSummaryService.summarizePreviousDayAndPost(this.client);
+    } catch (error) {
+      logger.error('Error in daily log summary:', error);
     }
   }
 }

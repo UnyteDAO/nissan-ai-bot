@@ -1,4 +1,6 @@
 const { AttachmentBuilder } = require('discord.js');
+const fs = require('fs').promises;
+const path = require('path');
 const logger = require('../utils/logger');
 const config = require('../config');
 const messageService = require('./messageService');
@@ -230,7 +232,24 @@ class LogExportService {
   buildSingleAttachment(rows, fileName) {
     const csv = rows.join('\n');
     const buf = Buffer.from(csv, 'utf-8');
-    return new AttachmentBuilder(buf, { name: `${fileName}.csv` });
+    return { attachment: new AttachmentBuilder(buf, { name: `${fileName}.csv` }), buffer: buf };
+  }
+
+  /**
+   * 生成したCSVを /logs/chat/ に保存
+   * @param {string} fileName ベースファイル名（拡張子なし）
+   * @param {Buffer} buffer CSVバッファ
+   */
+  async saveCsvToChatDir(fileName, buffer) {
+    try {
+      const baseDir = path.join(__dirname, '../../logs/chat');
+      await fs.mkdir(baseDir, { recursive: true });
+      const filePath = path.join(baseDir, `${fileName}.csv`);
+      await fs.writeFile(filePath, buffer);
+      logger.info(`Saved CSV to ${filePath}`);
+    } catch (e) {
+      logger.error('Failed to save CSV to @chat directory:', e);
+    }
   }
 
   /**
@@ -268,7 +287,8 @@ class LogExportService {
 
         const safeName = this.sanitizeFileName(channelName || `channel_${sourceId}`);
         const fileName = this.sanitizeFileName(`messages_${safeName}_${jstDateLabel}`);
-        const attachment = this.buildSingleAttachment(rows, fileName);
+        const { attachment, buffer } = this.buildSingleAttachment(rows, fileName);
+        await this.saveCsvToChatDir(fileName, buffer);
         allAttachments.push(attachment);
       }
 
