@@ -1,5 +1,4 @@
 const { AttachmentBuilder } = require('discord.js');
-const path = require('path');
 const logger = require('../utils/logger');
 const config = require('../config');
 const messageService = require('./messageService');
@@ -52,6 +51,21 @@ class LogExportService {
     // 2重引用符のエスケープ
     str = str.replace(/"/g, '""');
     return `"${str}"`;
+  }
+
+  /**
+   * ファイル名をサニタイズ（日本語などUnicodeは保持、禁止記号のみ置換）
+   * @param {string} name
+   * @returns {string}
+   */
+  sanitizeFileName(name) {
+    if (!name) return 'file';
+    const normalized = name.normalize('NFKC');
+    // Windows/Unixで問題になる文字を置換: \ / : * ? " < > | と制御文字
+    return normalized
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/[\x00-\x1F\x7F]/g, '_')
+      .trim();
   }
 
   /**
@@ -216,8 +230,8 @@ class LogExportService {
         totalCount += count;
         detailLines.push(`• #${channelName || sourceId}: ${count}件`);
 
-        const safeName = (channelName || `channel_${sourceId}`).replace(/[^a-zA-Z0-9-_]/g, '_');
-        const fileName = `messages_${safeName}_${jstDateLabel}`;
+        const safeName = this.sanitizeFileName(channelName || `channel_${sourceId}`);
+        const fileName = this.sanitizeFileName(`messages_${safeName}_${jstDateLabel}`);
         const attachment = this.buildSingleAttachment(rows, fileName);
         allAttachments.push(attachment);
       }
