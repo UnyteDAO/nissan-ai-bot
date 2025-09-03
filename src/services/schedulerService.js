@@ -53,7 +53,7 @@ class SchedulerService {
     }
 
     // Schedule daily log export at 18:00 JST
-    const cronPattern = '35 12 * * *';
+    const cronPattern = '0 18 * * *';
     this.logsTask = cron.schedule(cronPattern, async () => {
       logger.info('Starting scheduled daily log export...');
       await this.runDailyLogExport();
