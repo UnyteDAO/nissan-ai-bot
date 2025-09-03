@@ -11,21 +11,23 @@ class LogExportService {
    * @returns {{ startUtc: Date, endUtc: Date, jstDateLabel: string }}
    */
   getPreviousDayJstRange() {
+    const offsetMs = 9 * 60 * 60 * 1000; // JST(+9h)
     const now = new Date();
-    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const jstNow = new Date(now.getTime() + offsetMs);
     const y = jstNow.getUTCFullYear();
     const m = jstNow.getUTCMonth();
     const d = jstNow.getUTCDate();
 
-    // 00:00 JST は UTC の 15:00 前日、23:59:59.999 JST は UTC の 14:59:59.999 当日
-    const startUtc = new Date(Date.UTC(y, m, d - 1, 15, 0, 0, 0));
-    const endUtc = new Date(Date.UTC(y, m, d, 14, 59, 59, 999));
+    // 前日JST 00:00 -> UTC (前々日 15:00)
+    const startUtc = new Date(Date.UTC(y, m, d - 2, 15, 0, 0, 0));
+    // 前日JST 23:59:59.999 -> UTC (前日 14:59:59.999)
+    const endUtc = new Date(Date.UTC(y, m, d - 1, 14, 59, 59, 999));
 
-    // ラベル用（JST基準の日付 YYYYMMDD）
-    const jstPrev = new Date(Date.UTC(y, m, d - 1, 0, 0, 0, 0));
-    const yyyy = jstPrev.getUTCFullYear();
-    const mm = String(jstPrev.getUTCMonth() + 1).padStart(2, '0');
-    const dd = String(jstPrev.getUTCDate()).padStart(2, '0');
+    // ラベルは前日JSTの日付を使用（startUtcに+9hしてYYYYMMDDを作成）
+    const jstLabelDate = new Date(startUtc.getTime() + offsetMs);
+    const yyyy = jstLabelDate.getUTCFullYear();
+    const mm = String(jstLabelDate.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(jstLabelDate.getUTCDate()).padStart(2, '0');
     const jstDateLabel = `${yyyy}${mm}${dd}`;
 
     return { startUtc, endUtc, jstDateLabel };
