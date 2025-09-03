@@ -69,6 +69,35 @@ class LogExportService {
   }
 
   /**
+   * Snowflake ID から UNIX ms を取得
+   * @param {string} id
+   * @returns {number|null}
+   */
+  getTimestampFromSnowflake(id) {
+    try {
+      const snow = BigInt(id);
+      // Discord epoch (2015-01-01T00:00:00.000Z)
+      const ms = Number((snow >> 22n) + 1420070400000n);
+      return ms;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * スレッドが対象期間にメッセージを含む可能性があるかを簡易判定
+   * @param {import('discord.js').ThreadChannel} thread
+   * @param {Date} startUtc
+   * @returns {boolean}
+   */
+  threadLikelyHasMessagesInRange(thread, startUtc) {
+    if (!thread || !thread.lastMessageId) return true; // 不明時は残す（安全側）
+    const lastMs = this.getTimestampFromSnowflake(thread.lastMessageId);
+    if (lastMs === null) return true;
+    return lastMs >= startUtc.getTime();
+  }
+
+  /**
    * スレッド（アクティブ/アーカイブ）を取得
    * @param {import('discord.js').TextChannel} channel
    * @returns {Promise<Array<import('discord.js').ThreadChannel>>}
@@ -121,6 +150,8 @@ class LogExportService {
       'message_id',
       'channel_id',
       'channel_name',
+      'thread_id',
+      'thread_name',
       'author_id',
       'author_name',
       'content',
@@ -136,16 +167,17 @@ class LogExportService {
     // 親チャンネルのメッセージ
     const channelMessages = await messageService.fetchChannelMessages(channel, startUtc, endUtc);
     for (const msg of channelMessages) {
-      rows.push(this.buildCsvRow(msg, channel.id, channel.name));
+      rows.push(this.buildCsvRow(msg, channel.id, channel.name, '', ''));
     }
 
     // スレッドも対象
     const threads = await this.fetchAllThreads(channel);
-    for (const thread of threads) {
+    const candidateThreads = threads.filter(t => this.threadLikelyHasMessagesInRange(t, startUtc));
+    for (const thread of candidateThreads) {
       const threadMessages = await messageService.fetchChannelMessages(thread, startUtc, endUtc);
       for (const msg of threadMessages) {
-        // channel_id / channel_name はスレッドを指す
-        rows.push(this.buildCsvRow(msg, thread.id, thread.name));
+        // 親チャンネル情報 + スレッド情報を別列に出力
+        rows.push(this.buildCsvRow(msg, channel.id, channel.name, thread.id, thread.name));
       }
     }
 
@@ -159,7 +191,7 @@ class LogExportService {
    * @param {string} outChannelName
    * @returns {string}
    */
-  buildCsvRow(msg, outChannelId, outChannelName) {
+  buildCsvRow(msg, outChannelId, outChannelName, threadId = '', threadName = '') {
     const timestampJst = this.formatJst(new Date(msg.createdTimestamp));
     const mentions = Array.from(msg.mentions?.users?.keys?.() || []);
     const attachments = Array.from(msg.attachments?.values?.() || []);
@@ -172,6 +204,8 @@ class LogExportService {
       msg.id,
       outChannelId,
       outChannelName || '',
+      threadId || '',
+      threadName || '',
       msg.author?.id || '',
       msg.author?.username || '',
       msg.content || '',
@@ -237,8 +271,8 @@ class LogExportService {
       }
 
       const headerText = `【日次チャットログ収集レポート】 \n` +
-        `[期間]: ${this.formatJst(startUtc)} 〜 ${this.formatJst(endUtc)}\n` +
-        `[件数]: ${totalCount}件\n [対象チャンネル]:\n` +
+        `[期間]\n${this.formatJst(startUtc)} 〜 ${this.formatJst(endUtc)}\n` +
+        `[件数]\n${totalCount}件\n[対象チャンネル]\n` +
         (detailLines.length ? detailLines.join('\n') : '');
 
       if (allAttachments.length === 0) {
