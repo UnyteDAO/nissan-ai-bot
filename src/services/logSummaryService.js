@@ -120,7 +120,7 @@ class LogSummaryService {
       try {
         files = await fs.readdir(this.chatDir);
       } catch (e) {
-        logger.warn('No @chat directory found for log summary');
+        logger.warn('No chat directory found for channel summary');
         return;
       }
 
