@@ -202,17 +202,21 @@ class LogExportService {
     const attachmentUrls = attachments.map(a => a.url).join(';');
     const isReply = !!msg.reference;
     const replyTo = msg.reference?.messageId || '';
+    // CSVの1行=1レコードを保証するため、本文や名称に含まれる改行を除去
+    const sanitizedContent = (msg.content || '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+    const sanitizedChannelName = (outChannelName || '').replace(/\r?\n/g, ' ').trim();
+    const sanitizedThreadName = (threadName || '').replace(/\r?\n/g, ' ').trim();
 
     const columns = [
       timestampJst,
       msg.id,
       outChannelId,
-      outChannelName || '',
+      sanitizedChannelName,
       threadId || '',
-      threadName || '',
+      sanitizedThreadName || '',
       msg.author?.id || '',
       msg.author?.username || '',
-      msg.content || '',
+      sanitizedContent,
       mentions.join('|'),
       attachments.length,
       attachmentUrls,
