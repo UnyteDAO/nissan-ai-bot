@@ -159,6 +159,24 @@ ${prompt}`;
   }
 
   /**
+ * Get system prompt for Channel Summary
+ * @returns {string} System prompt
+ */
+  getChannelSummarySystemPrompt() {
+    return `あなたはコミュニティのモデレーターです。与えられたチャンネルの会話ログを読み、以下の指示に従って日本語で簡潔にまとめてください。
+      指示:
+      - どのような会話や議論があったかを文章で記述すること
+      - 雑談などは特に反応が多く、盛り上がった話題をピックアップして簡単に経緯をまとめて記述すること
+      - 全体の流れは時系列に沿って記述すること
+      - その日のチャンネルの様子をわかりやすくまとめて締めくくること
+      - ひと続きの文章で300字以内で記述すること
+      - 出力はすべて日本語で英語を含めないこと
+      - どのような場合でも絵文字は使わないこと
+      - 前置きや免責は含めないこと
+      - URLや長い引用は省略すること`;
+  }
+
+  /**
    * Build evaluation prompt from thread
    * @param {Object} thread - Thread object
    * @returns {string} Evaluation prompt
@@ -182,6 +200,27 @@ ${prompt}`;
 
     prompt += `\n\n各参加者の貢献度を評価し、JSON形式で結果を返してください。`;
 
+    return prompt;
+  }
+
+  /**
+   * Build channel summary prompt from thread
+   * @param {Object} params
+   * @param {string} params.channelName
+   * @param {string} params.jstDateLabel
+   * @param {Array<{timestamp:string, authorName:string, content:string, threadName?:string}>} params.messages
+   * @returns {string} Channel summary prompt
+   */
+  buildChannelSummaryPrompt({ channelName, jstDateLabel, messages }) {
+    let prompt = `対象チャンネル: ${channelName}\n対象日 (JST): ${jstDateLabel}\n\n`;
+    prompt += '以下は会話の抜粋です。内容をまとめてください。\n';
+    prompt += '会話ログ:\n';
+    for (const m of messages) {
+      const threadSuffix = m.threadName ? ` [${m.threadName}]` : '';
+      const line = `[${m.timestamp}] ${m.authorName}${threadSuffix}: ${m.content}`;
+      // 1行の長さをある程度抑制
+      prompt += `${line.substring(0, 500)}\n`;
+    }
     return prompt;
   }
 
@@ -403,71 +442,80 @@ ${prompt}`;
    */
   async generateChannelSummary({ channelName, jstDateLabel, messages }) {
     const startTime = Date.now();
-    try {
-      const systemPrompt = `あなたはコミュニティのモデレーターです。与えられたチャンネルの会話ログを読み、以下の指示に従って日本語で簡潔にまとめてください。
-      指示:
-      - どのような会話や議論があったかを文章で記述すること
-      - 雑談などは特に反応が多く、盛り上がった話題をピックアップして簡単に経緯をまとめて記述すること
-      - 全体の流れは時系列に沿って記述すること
-      - その日のチャンネルの様子をわかりやすくまとめて締めくくること
-      - ひと続きの文章で300字以内で記述すること
-      - 出力はすべて日本語で英語を含めないこと
-      - どのような場合でも絵文字は使わないこと
-      - 前置きや免責は含めないこと
-      - URLや長い引用は省略すること`;
-      let prompt = `対象チャンネル: ${channelName}\n対象日 (JST): ${jstDateLabel}\n\n`;
-      prompt += '以下は会話の抜粋です。内容をまとめてください。\n';
-      prompt += '会話ログ:\n';
-      for (const m of messages) {
-        const threadSuffix = m.threadName ? ` [${m.threadName}]` : '';
-        const line = `[${m.timestamp}] ${m.authorName}${threadSuffix}: ${m.content}`;
-        // 1行の長さをある程度抑制
-        prompt += `${line.substring(0, 500)}\n`;
-      }
+    let apiLogId = null;
 
-      const generationConfig = { temperature: 0.3, maxOutputTokens: Math.min(this.maxTokens, 512) };
+    try {
+      const systemPrompt = this.getChannelSummarySystemPrompt();
+      const prompt = this.buildChannelSummaryPrompt({ channelName, jstDateLabel, messages });
+      const fullPrompt = `${systemPrompt}\n\n${prompt}`;
+
+      const generationConfig = { temperature: 0.2, maxOutputTokens: this.maxTokens };
+
       const result = await this.model.generateContent({
-        contents: [{ parts: [{ text: `${systemPrompt}\n\n${prompt}` }] }],
+        contents: [{ parts: [{ text: fullPrompt }] }],
         generationConfig,
       });
 
       const response = result.response;
-      const text = (response?.text?.() || '').trim();
+      const duration = Date.now() - startTime;
+      logger.info(`💡Channel summary generated successfully for ${channelName} on ${jstDateLabel} in ${duration}ms
+        response: ${response.text()}
+      `);
 
       // APIログ
-      await apiLogModel.logApiCall({
-        type: 'log_summary',
+      apiLogId = await apiLogModel.logApiCall({
+        type: 'channel_summary',
         model: this.modelName,
         request: {
           system: systemPrompt,
-          prompt,
-          max_tokens: generationConfig.maxOutputTokens,
-          temperature: generationConfig.temperature,
+          prompt: prompt,
+          max_tokens: this.maxTokens,
+          temperature: 0.2,
         },
         response: {
-          content: text,
+          content: response.text(),
           usage: {
             promptTokens: result.response.usageMetadata?.promptTokenCount || 0,
             completionTokens: result.response.usageMetadata?.candidatesTokenCount || 0,
             totalTokens: result.response.usageMetadata?.totalTokenCount || 0,
           },
         },
-        duration: Date.now() - startTime,
+        duration: duration,
         metadata: { channelName, jstDateLabel, messagesSampled: messages.length },
       });
 
-      return text || '要約対象の会話が少なく、特筆事項はありませんでした';
+      // AI指示をログに記録（設定で有効な場合のみ）
+      if (config.logging.enableAiInstructionLogging) {
+        try {
+          await aiInstructionLogger.logInstruction({
+            userId: 'system',
+            instruction: prompt,
+            response: response.text(),
+            category: 'channel_summary',
+            baseScore: 100,
+            notes: `Channel summary generation for ${channelName} on ${jstDateLabel}`
+          });
+        } catch (logError) {
+          logger.error('Failed to log AI instruction:', logError);
+        }
+      }
+
+      logger.info(`Channel summary generated successfully for ${channelName} on ${jstDateLabel}`);
+      return response.text();
     } catch (error) {
       logger.error('Error generating channel summary:', error);
       // 失敗ログ
-      await apiLogModel.logApiCall({
-        type: 'log_summary',
-        model: this.modelName,
-        request: { channelName, jstDateLabel },
-        error,
-        duration: Date.now() - startTime,
-      });
-      throw error;
+      if (!apiLogId) {
+        await apiLogModel.logApiCall({
+          type: 'channel_summary',
+          model: this.modelName,
+          request: { channelName, jstDateLabel },
+          error: error,
+          duration: Date.now() - startTime,
+          metadata: { channelName, jstDateLabel, messagesSampled: messages.length },
+        });
+      }
+      return 'エラーが発生しました';
     }
   }
 }
