@@ -77,6 +77,8 @@ class LogSummaryService {
         ts: header.indexOf('timestamp_jst'),
         channelId: header.indexOf('channel_id'),
         channelName: header.indexOf('channel_name'),
+        messageId: header.indexOf('message_id'),
+        threadId: header.indexOf('thread_id'),
         threadName: header.indexOf('thread_name'),
         authorName: header.indexOf('author_name'),
         content: header.indexOf('content'),
@@ -98,6 +100,9 @@ class LogSummaryService {
           timestamp: idx.ts >= 0 ? cols[idx.ts] : '',
           authorName: idx.authorName >= 0 ? cols[idx.authorName] : '',
           content: idx.content >= 0 ? cols[idx.content] : '',
+          messageId: idx.messageId >= 0 ? cols[idx.messageId] : '',
+          channelId: idx.channelId >= 0 ? cols[idx.channelId] : channelId,
+          threadId: idx.threadId >= 0 ? cols[idx.threadId] : '',
           threadName: idx.threadName >= 0 ? cols[idx.threadName] : '',
         });
       }
@@ -155,6 +160,7 @@ class LogSummaryService {
         const summary = await geminiService.generateChannelSummary({
           channelName: channelName || `channel_${channelId}`,
           jstDateLabel: label,
+          guildId: exportChannel.guildId,
           messages,
         });
 

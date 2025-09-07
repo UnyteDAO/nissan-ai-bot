@@ -9,7 +9,7 @@ class GeminiService {
     this.genAI = new GoogleGenerativeAI(config.gemini.apiKey);
     this.modelName = config.gemini.model || 'gemini-1.5-flash';
     this.model = this.genAI.getGenerativeModel({ model: this.modelName });
-    this.maxTokens = 4096;
+    this.maxTokens = 8192;
   }
 
   /**
@@ -164,16 +164,28 @@ ${prompt}`;
  */
   getChannelSummarySystemPrompt() {
     return `あなたはコミュニティのモデレーターです。与えられたチャンネルの会話ログを読み、以下の指示に従って日本語で簡潔にまとめてください。
+    結果は以下の出力フォーマットに厳密に従ったJSONのみを出力してください。
       指示:
-      - どのような会話や議論があったかを文章で記述すること
-      - 雑談などは特に反応が多く、盛り上がった話題をピックアップして簡単に経緯をまとめて記述すること
-      - 全体の流れは時系列に沿って記述すること
+      - どのような会話や議論、話題があったかを整理すること
+      - 主要な話題をピックアップして簡単に経緯をまとめること
+      - 雑談などは特に反応が多く、盛り上がった話題をピックアップして簡単に経緯をまとめること
       - その日のチャンネルの様子をわかりやすくまとめて締めくくること
-      - ひと続きの文章で300字以内で記述すること
-      - 出力はすべて日本語で英語を含めないこと
-      - どのような場合でも絵文字は使わないこと
-      - 前置きや免責は含めないこと
-      - URLや長い引用は省略すること`;
+      - 文章はすべて日本語で英語を含めないこと
+      - 文章は300字以内で記述すること
+      - URLや長い引用は省略すること
+      - 要約文はsummaryに記述すること
+      - 要約文の中では、1文ごとに参照元のメッセージを明示すること。明示する場合はmessageIdsにメッセージIDを配列で記述し、文末に"[0]"のようにmessageIdsの配列のindexを記述すること。複数件ある場合は"[0,1,2]"のように記述すること。
+      - チャンネル全体の様子を表す文や締めくくりの文に対しては参照元を示さなくてよい
+      - messageIdsには、その文章の参照元メッセージのIDを配列で記述すること
+      - messageIdsは最大5件までとする
+      - 参照元メッセージのIDがない場合、messageIdsは[]とし、省略しないこと
+
+      JSONの構造は以下のようにしてください:
+      {
+        "summary": "要約内容",
+        "messageIds": ["メッセージID1", "メッセージID2", "メッセージID3"]
+      }
+      `;
   }
 
   /**
@@ -211,15 +223,14 @@ ${prompt}`;
    * @param {Array<{timestamp:string, authorName:string, content:string, threadName?:string}>} params.messages
    * @returns {string} Channel summary prompt
    */
-  buildChannelSummaryPrompt({ channelName, jstDateLabel, messages }) {
+  buildChannelSummaryPrompt({ channelName, jstDateLabel, messages, guildId }) {
     let prompt = `対象チャンネル: ${channelName}\n対象日 (JST): ${jstDateLabel}\n\n`;
     prompt += '以下は会話の抜粋です。内容をまとめてください。\n';
     prompt += '会話ログ:\n';
     for (const m of messages) {
       const threadSuffix = m.threadName ? ` [${m.threadName}]` : '';
-      const line = `[${m.timestamp}] ${m.authorName}${threadSuffix}: ${m.content}`;
-      // 1行の長さをある程度抑制
-      prompt += `${line.substring(0, 500)}\n`;
+      const line = `[${m.timestamp} Message ID: ${m.messageId}] ${m.authorName}${threadSuffix}: ${m.content}`;
+      prompt += `${line}\n`;
     }
     return prompt;
   }
@@ -283,6 +294,46 @@ ${prompt}`;
         concerns: [],
         error: error.message,
       };
+    }
+  }
+
+  /**
+   * Parse channel summary model response into JSON structure
+   * 仕様: { summary: string, messageIds: string[] }
+   * @param {string} responseText
+   * @returns {{summary: string, messageIds: string[]}|null}
+   */
+  parseChannelSummaryResponse(responseText) {
+    try {
+      const cleaned = responseText.replace(/^```json\n|^```\n|```$/g, '');
+      const parsed = JSON.parse(cleaned);
+
+      // 新仕様
+      if (parsed && typeof parsed.summary === 'string' && Array.isArray(parsed.messageIds)) {
+        return { summary: parsed.summary, messageIds: parsed.messageIds };
+      }
+
+      // 旧仕様からのフォールバック: sentences[] を結合し、messageIdsは出現順にユニーク収集
+      if (parsed && Array.isArray(parsed.sentences)) {
+        const sentences = parsed.sentences.filter(s => s && typeof s.sentence === 'string');
+        const summary = sentences.map(s => s.sentence).join('\n');
+        const ids = [];
+        for (const s of sentences) {
+          const arr = Array.isArray(s.messageIds) ? s.messageIds : [];
+          for (const id of arr) {
+            if (typeof id === 'string' || typeof id === 'number') {
+              const str = String(id);
+              if (!ids.includes(str)) ids.push(str);
+            }
+          }
+        }
+        return { summary, messageIds: ids };
+      }
+
+      throw new Error('Invalid channel summary JSON structure');
+    } catch (e) {
+      logger.warn('Failed to parse channel summary JSON', e);
+      return null;
     }
   }
 
@@ -440,14 +491,15 @@ ${prompt}`;
    * @param {Array<{timestamp:string, authorName:string, content:string, threadName?:string}>} params.messages
    * @returns {Promise<string>} summary text (<=3 lines)
    */
-  async generateChannelSummary({ channelName, jstDateLabel, messages }) {
+  async generateChannelSummary({ channelName, jstDateLabel, messages, guildId }) {
     const startTime = Date.now();
     let apiLogId = null;
 
     try {
       const systemPrompt = this.getChannelSummarySystemPrompt();
-      const prompt = this.buildChannelSummaryPrompt({ channelName, jstDateLabel, messages });
+      const prompt = this.buildChannelSummaryPrompt({ channelName, jstDateLabel, messages, guildId });
       const fullPrompt = `${systemPrompt}\n\n${prompt}`;
+      logger.info(`💡Channel summary prompt: ${fullPrompt}`);
 
       const generationConfig = { temperature: 0.2, maxOutputTokens: this.maxTokens };
 
@@ -458,9 +510,7 @@ ${prompt}`;
 
       const response = result.response;
       const duration = Date.now() - startTime;
-      logger.info(`💡Channel summary generated successfully for ${channelName} on ${jstDateLabel} in ${duration}ms
-        response: ${response.text()}
-      `);
+      logger.info(`💡Channel summary generated successfully for ${channelName} on ${jstDateLabel} in ${duration}ms`);
 
       // APIログ
       apiLogId = await apiLogModel.logApiCall({
@@ -489,19 +539,60 @@ ${prompt}`;
         try {
           await aiInstructionLogger.logInstruction({
             userId: 'system',
-            instruction: prompt,
+            instruction: fullPrompt,
             response: response.text(),
             category: 'channel_summary',
             baseScore: 100,
-            notes: `Channel summary generation for ${channelName} on ${jstDateLabel}`
+            notes: `Channel summary generation for ${channelName} on ${jstDateLabel}
+            totalTokens: ${result.response.usageMetadata?.totalTokenCount || 0},
+            finishReason: ${result.response.usageMetadata?.finishReason || 'stop'}`
           });
         } catch (logError) {
           logger.error('Failed to log AI instruction:', logError);
         }
       }
 
+      // JSONを解析し、Discord向けの文+参照リンク形式を構築
+      const raw = response.text();
+      const parsed = this.parseChannelSummaryResponse(raw);
+      const idToPermalink = new Map();
+      for (const m of messages) {
+        const channelForLink = (m.threadId && String(m.threadId).length > 0) ? m.threadId : m.channelId;
+        if (guildId && channelForLink && m.messageId) {
+          const url = `https://discord.com/channels/${guildId}/${channelForLink}/${m.messageId}`;
+          idToPermalink.set(String(m.messageId), url);
+        }
+      }
+
+      let summaryText = '';
+      if (parsed && typeof parsed.summary === 'string' && Array.isArray(parsed.messageIds)) {
+        const idxToUrl = (idxStr) => {
+          const idx = Number(idxStr.trim());
+          if (!Number.isFinite(idx)) return null;
+          const id = parsed.messageIds[idx];
+          if (!id) return null;
+          return idToPermalink.get(String(id)) || null;
+        };
+        // [0] や [0, 2] のような参照をリンク群に置換
+        const replaced = parsed.summary.replace(/\[(\s*\d+(?:\s*,\s*\d+)*\s*)\]/g, (_m, group) => {
+          const parts = group.split(',').map(p => p.trim()).filter(Boolean);
+          const links = parts
+            .map(p => {
+              const url = idxToUrl(p);
+              if (!url) return null;
+              const n = Number(p);
+              const label = Number.isFinite(n) ? n + 1 : null; // 1始まり
+              return label ? `[[${label}]](${url})` : null;
+            })
+            .filter(Boolean);
+          return links.length > 0 ? ` ${links.join(' ')}` : '';
+        });
+        summaryText = replaced.trim();
+      }
+      if (!summaryText) summaryText = raw; // フォールバック
+
       logger.info(`Channel summary generated successfully for ${channelName} on ${jstDateLabel}`);
-      return response.text();
+      return summaryText;
     } catch (error) {
       logger.error('Error generating channel summary:', error);
       // 失敗ログ
