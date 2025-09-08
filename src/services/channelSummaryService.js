@@ -7,6 +7,7 @@ const logger = require('../utils/logger');
 class LogSummaryService {
   constructor() {
     this.chatDir = path.join(__dirname, '../../logs/chat');
+    this.userNameCache = new Map();
   }
 
   /**
@@ -115,7 +116,7 @@ class LogSummaryService {
   }
 
   /**
-   * 前日分を各チャンネルで要約し、各チャンネルに投稿
+   * 前日分をチャンネルごとに要約し、指定のチャンネルに投稿
    * @param {import('discord.js').Client} client
    */
   async summarizePreviousDayAndPost(client) {
@@ -157,11 +158,14 @@ class LogSummaryService {
           continue;
         }
 
+        // メンション(<@id>)をusername(@name)に置換
+        const preprocessedMessages = await this.replaceUserMentionsWithNames(messages, client, exportChannel.guildId);
+
         const summary = await geminiService.generateChannelSummary({
           channelName: channelName || `channel_${channelId}`,
           jstDateLabel: label,
           guildId: exportChannel.guildId,
-          messages,
+          messages: preprocessedMessages,
         });
 
         const dateStr = `${label.substring(0, 4)}/${label.substring(4, 6)}/${label.substring(6, 8)}`;
@@ -174,6 +178,84 @@ class LogSummaryService {
     }
   }
 }
+
+/**
+ * ユーザーメンション(<@id>, <@!id>)を@usernameに置換
+ * @param {Array<{content:string}>} messages
+ * @param {import('discord.js').Client} client
+ * @param {string} guildId
+ */
+LogSummaryService.prototype.replaceUserMentionsWithNames = async function (messages, client, guildId) {
+  try {
+    if (!guildId || !Array.isArray(messages) || messages.length === 0) return messages;
+
+    const userMentionRegex = /<@!?(\d{15,20})>/g;
+    const userIds = new Set();
+    for (const message of messages) {
+      if (!message || typeof message.content !== 'string') continue;
+      const iterator = message.content.matchAll(userMentionRegex);
+      for (const match of iterator) {
+        if (match && match[1]) userIds.add(match[1]);
+      }
+    }
+
+    if (userIds.size === 0) return messages;
+
+    const idToName = new Map();
+    const unresolved = [];
+    for (const id of userIds) {
+      if (this.userNameCache.has(id)) {
+        idToName.set(id, this.userNameCache.get(id));
+      } else {
+        unresolved.push(id);
+      }
+    }
+
+    // Guildメンバーをまとめて取得（上限に合わせてチャンク）
+    const guild = await client.guilds.fetch(guildId).catch(() => null);
+    const chunkSize = 100;
+    if (guild && unresolved.length > 0) {
+      for (let start = 0; start < unresolved.length; start += chunkSize) {
+        const chunk = unresolved.slice(start, start + chunkSize);
+        const members = await guild.members.fetch({ user: chunk }).catch(() => null);
+        if (members && typeof members.forEach === 'function') {
+          members.forEach(member => {
+            const username = member?.user?.username;
+            if (member?.id && username) {
+              idToName.set(member.id, username);
+              this.userNameCache.set(member.id, username);
+            }
+          });
+        }
+      }
+    }
+
+    // 未解決IDは users.fetch でフォールバック
+    for (const id of unresolved) {
+      if (idToName.has(id)) continue;
+      const user = await client.users.fetch(id).catch(() => null);
+      const name = user?.username || null;
+      if (name) {
+        idToName.set(id, name);
+        this.userNameCache.set(id, name);
+      }
+    }
+
+    // 実置換
+    for (const message of messages) {
+      if (!message || typeof message.content !== 'string') continue;
+      message.content = message.content.replace(userMentionRegex, (_all, id) => {
+        const name = idToName.get(id) || this.userNameCache.get(id);
+        return name ? `@${name}` : '@unknown';
+      });
+    }
+
+    return messages;
+  } catch (e) {
+    logger.warn('Failed to replace mentions with usernames', e);
+    return messages;
+  }
+};
 
 module.exports = new LogSummaryService();
 
