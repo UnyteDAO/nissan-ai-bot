@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const evaluationService = require('./evaluationService');
-const logExportService = require('./logExportService');
-const logSummaryService = require('./logSummaryService');
+const chatLogExportService = require('./chatchatLogExportService');
+const channelSummaryService = require('./channelSummaryService');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -293,7 +293,7 @@ class SchedulerService {
    */
   async runDailyChatLogExport() {
     try {
-      await logExportService.exportPreviousDayAndSend(this.client);
+      await chatLogExportService.exportPreviousDayAndSend(this.client);
     } catch (error) {
       logger.error('Error in daily log export:', error);
     }
@@ -304,7 +304,7 @@ class SchedulerService {
    */
   async runDailyChannelSummary() {
     try {
-      await logSummaryService.summarizePreviousDayAndPost(this.client);
+      await channelSummaryService.summarizePreviousDayAndPost(this.client);
     } catch (error) {
       logger.error('Error in daily log summary:', error);
     }
