@@ -8,9 +8,9 @@ const logger = require('../utils/logger');
 class SchedulerService {
   constructor() {
     this.client = null;
-    this.scheduledTask = null;
-    this.logsTask = null;
-    this.logsSummaryTask = null;
+    this.evaluationTask = null;
+    this.chatLogExportTask = null;
+    this.channelSummaryTask = null;
   }
 
   /**
@@ -20,8 +20,8 @@ class SchedulerService {
   initialize(client) {
     this.client = client;
     this.setupScheduledEvaluation();
-    this.setupScheduledLogExport();
-    this.setupScheduledLogSummary();
+    this.setupScheduledChatLogExport();
+    this.setupScheduledChannelSummary();
     logger.info(`Scheduler initialized with cron pattern: ${config.cron.schedule}`);
   }
 
@@ -30,12 +30,12 @@ class SchedulerService {
    */
   setupScheduledEvaluation() {
     // Cancel existing task if any
-    if (this.scheduledTask) {
-      this.scheduledTask.stop();
+    if (this.evaluationTask) {
+      this.evaluationTask.stop();
     }
 
     // Schedule daily evaluation
-    this.scheduledTask = cron.schedule(config.cron.schedule, async () => {
+    this.evaluationTask = cron.schedule(config.cron.schedule, async () => {
       logger.info('Starting scheduled daily evaluation...');
       await this.runDailyEvaluation();
     }, {
@@ -47,18 +47,18 @@ class SchedulerService {
   }
 
   /**
-   * Setup scheduled daily log export at 18:00 JST
+   * Setup scheduled daily chat log export
    */
-  setupScheduledLogExport() {
+  setupScheduledChatLogExport() {
     // Cancel existing task if any
-    if (this.logsTask) {
-      this.logsTask.stop();
+    if (this.chatLogExportTask) {
+      this.chatLogExportTask.stop();
     }
 
-    // Schedule daily log export at 18:00 JST
-    this.logsTask = cron.schedule(config.cron.schedule, async () => {
-      logger.info('Starting scheduled daily log export...');
-      await this.runDailyLogExport();
+    // Schedule daily chat log export
+    this.chatLogExportTask = cron.schedule(config.cron.schedule, async () => {
+      logger.info('Starting scheduled daily chat log export...');
+      await this.runDailyChatLogExport();
     }, {
       scheduled: true,
       timezone: 'Asia/Tokyo'
@@ -70,14 +70,14 @@ class SchedulerService {
   /**
    * Setup scheduled daily log summary at 19:00 JST (configurable)
    */
-  setupScheduledLogSummary() {
-    if (this.logsSummaryTask) {
-      this.logsSummaryTask.stop();
+  setupScheduledChannelSummary() {
+    if (this.channelSummaryTask) {
+      this.channelSummaryTask.stop();
     }
 
-    this.logsSummaryTask = cron.schedule('0 19 * * *', async () => {
-      logger.info('Starting scheduled daily log summary...');
-      await this.runDailyLogSummary();
+    this.channelSummaryTask = cron.schedule('0 19 * * *', async () => {
+      logger.info('Starting scheduled daily channel summary...');
+      await this.runDailyChannelSummary();
     }, {
       scheduled: true,
       timezone: 'Asia/Tokyo'
@@ -265,16 +265,16 @@ class SchedulerService {
    * Stop the scheduler
    */
   stop() {
-    if (this.scheduledTask) {
-      this.scheduledTask.stop();
+    if (this.evaluationTask) {
+      this.evaluationTask.stop();
       logger.info('Scheduler stopped');
     }
-    if (this.logsTask) {
-      this.logsTask.stop();
+    if (this.chatLogExportTask) {
+      this.chatLogExportTask.stop();
       logger.info('Log export scheduler stopped');
     }
-    if (this.logsSummaryTask) {
-      this.logsSummaryTask.stop();
+    if (this.channelSummaryTask) {
+      this.channelSummaryTask.stop();
       logger.info('Log summary scheduler stopped');
     }
   }
@@ -290,7 +290,7 @@ class SchedulerService {
   /**
    * Run daily log export job
    */
-  async runDailyLogExport() {
+  async runDailyChatLogExport() {
     try {
       await logExportService.exportPreviousDayAndSend(this.client);
     } catch (error) {
@@ -301,7 +301,7 @@ class SchedulerService {
   /**
    * Run daily log summary job
    */
-  async runDailyLogSummary() {
+  async runDailyChannelSummary() {
     try {
       await logSummaryService.summarizePreviousDayAndPost(this.client);
     } catch (error) {
