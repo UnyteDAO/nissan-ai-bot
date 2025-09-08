@@ -1,14 +1,17 @@
 const cron = require('node-cron');
 const evaluationService = require('./evaluationService');
-const logExportService = require('./logExportService');
+const chatLogExportService = require('./chatLogExportService');
+const channelSummaryService = require('./channelSummaryService');
 const config = require('../config');
 const logger = require('../utils/logger');
 
 class SchedulerService {
   constructor() {
     this.client = null;
-    this.scheduledTask = null;
-    this.logsTask = null;
+    this.evaluationTask = null;
+    this.chatLogExportTask = null;
+    this.channelSummaryTask = null;
+    this.timezone = 'Asia/Tokyo';
   }
 
   /**
@@ -18,8 +21,8 @@ class SchedulerService {
   initialize(client) {
     this.client = client;
     this.setupScheduledEvaluation();
-    this.setupScheduledLogExport();
-    logger.info(`Scheduler initialized with cron pattern: ${config.cron.schedule}`);
+    this.setupScheduledChatLogExport();
+    this.setupScheduledChannelSummary();
   }
 
   /**
@@ -27,41 +30,62 @@ class SchedulerService {
    */
   setupScheduledEvaluation() {
     // Cancel existing task if any
-    if (this.scheduledTask) {
-      this.scheduledTask.stop();
+    if (this.evaluationTask) {
+      this.evaluationTask.stop();
     }
 
     // Schedule daily evaluation
-    this.scheduledTask = cron.schedule(config.cron.schedule, async () => {
+    this.evaluationTask = cron.schedule(config.cron.evaluationSchedule, async () => {
       logger.info('Starting scheduled daily evaluation...');
       await this.runDailyEvaluation();
     }, {
       scheduled: true,
-      timezone: 'Asia/Tokyo'
+      timezone: this.timezone
     });
 
-    logger.info('Daily evaluation scheduled at 18:00 JST');
+    logger.info(`Daily evaluation scheduled with cron: ${config.cron.evaluationSchedule} (${this.timezone})`);
   }
 
   /**
-   * Setup scheduled daily log export at 18:00 JST
+   * Setup scheduled daily chat log export
    */
-  setupScheduledLogExport() {
+  setupScheduledChatLogExport() {
     // Cancel existing task if any
-    if (this.logsTask) {
-      this.logsTask.stop();
+    if (this.chatLogExportTask) {
+      this.chatLogExportTask.stop();
     }
 
-    // Schedule daily log export at 18:00 JST
-    this.logsTask = cron.schedule(config.cron.schedule, async () => {
-      logger.info('Starting scheduled daily log export...');
-      await this.runDailyLogExport();
+    // Schedule daily chat log export
+    this.chatLogExportTask = cron.schedule(config.cron.chatLogExportSchedule, async () => {
+      logger.info('Starting scheduled daily chat log export...');
+      await this.runDailyChatLogExport();
     }, {
       scheduled: true,
-      timezone: 'Asia/Tokyo'
+      timezone: this.timezone
     });
 
-    logger.info('Daily log export scheduled at 18:00 JST');
+    logger.info(`Daily chat log export scheduled with cron: ${config.cron.chatLogExportSchedule} (${this.timezone})`);
+  }
+
+  /**
+   * Setup scheduled daily channel summary
+   */
+  setupScheduledChannelSummary() {
+    // Cancel existing task if any
+    if (this.channelSummaryTask) {
+      this.channelSummaryTask.stop();
+    }
+
+    // Schedule daily channel summary
+    this.channelSummaryTask = cron.schedule(config.cron.channelSummarySchedule, async () => {
+      logger.info('Starting scheduled daily channel summary...');
+      await this.runDailyChannelSummary();
+    }, {
+      scheduled: true,
+      timezone: this.timezone
+    });
+
+    logger.info(`Daily channel summary scheduled with cron: ${config.cron.channelSummarySchedule} (${this.timezone})`);
   }
 
   /**
@@ -243,13 +267,17 @@ class SchedulerService {
    * Stop the scheduler
    */
   stop() {
-    if (this.scheduledTask) {
-      this.scheduledTask.stop();
+    if (this.evaluationTask) {
+      this.evaluationTask.stop();
       logger.info('Scheduler stopped');
     }
-    if (this.logsTask) {
-      this.logsTask.stop();
+    if (this.chatLogExportTask) {
+      this.chatLogExportTask.stop();
       logger.info('Log export scheduler stopped');
+    }
+    if (this.channelSummaryTask) {
+      this.channelSummaryTask.stop();
+      logger.info('Log summary scheduler stopped');
     }
   }
 
@@ -262,13 +290,24 @@ class SchedulerService {
   }
 
   /**
-   * Run daily log export job
+   * Run daily chat log export job
    */
-  async runDailyLogExport() {
+  async runDailyChatLogExport() {
     try {
-      await logExportService.exportPreviousDayAndSend(this.client);
+      await chatLogExportService.exportPreviousDayAndSend(this.client);
     } catch (error) {
-      logger.error('Error in daily log export:', error);
+      logger.error('Error in daily chat log export:', error);
+    }
+  }
+
+  /**
+   * Run daily channel summary job
+   */
+  async runDailyChannelSummary() {
+    try {
+      await channelSummaryService.summarizePreviousDayAndPost(this.client);
+    } catch (error) {
+      logger.error('Error in daily channel summary:', error);
     }
   }
 }
