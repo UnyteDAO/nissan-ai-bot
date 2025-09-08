@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const evaluationService = require('./evaluationService');
-const chatLogExportService = require('./chatchatLogExportService');
+const chatLogExportService = require('./chatLogExportService');
 const channelSummaryService = require('./channelSummaryService');
 const config = require('../config');
 const logger = require('../utils/logger');
@@ -65,11 +65,11 @@ class SchedulerService {
       timezone: this.timezone
     });
 
-    logger.info(`Daily log export scheduled with cron: ${config.cron.chatLogExportSchedule} (${this.timezone})`);
+    logger.info(`Daily chat log export scheduled with cron: ${config.cron.chatLogExportSchedule} (${this.timezone})`);
   }
 
   /**
-   * Setup scheduled daily log summary
+   * Setup scheduled daily channel summary
    */
   setupScheduledChannelSummary() {
     if (this.channelSummaryTask) {
@@ -84,7 +84,7 @@ class SchedulerService {
       timezone: this.timezone
     });
 
-    logger.info(`Daily log summary scheduled with cron: ${config.cron.channelSummarySchedule} (${this.timezone})`);
+    logger.info(`Daily channel summary scheduled with cron: ${config.cron.channelSummarySchedule} (${this.timezone})`);
   }
 
   /**
@@ -289,24 +289,24 @@ class SchedulerService {
   }
 
   /**
-   * Run daily log export job
+   * Run daily chat log export job
    */
   async runDailyChatLogExport() {
     try {
       await chatLogExportService.exportPreviousDayAndSend(this.client);
     } catch (error) {
-      logger.error('Error in daily log export:', error);
+      logger.error('Error in daily chat log export:', error);
     }
   }
 
   /**
-   * Run daily log summary job
+   * Run daily channel summary job
    */
   async runDailyChannelSummary() {
     try {
       await channelSummaryService.summarizePreviousDayAndPost(this.client);
     } catch (error) {
-      logger.error('Error in daily log summary:', error);
+      logger.error('Error in daily channel summary:', error);
     }
   }
 }
