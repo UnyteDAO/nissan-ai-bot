@@ -225,10 +225,24 @@ ${prompt}`;
     let prompt = `対象チャンネル: ${channelName}\n対象日 (JST): ${jstDateLabel}\n\n`;
     prompt += '以下は会話の抜粋です。内容をまとめてください。\n';
     prompt += '会話ログ:\n';
-    for (let i = 0; i < messages.length; i++) {
-      const m = messages[i];
-      const threadSuffix = m.threadName ? ` [${m.threadName}]` : '';
-      const line = `[${m.timestamp} #${i}] ${m.authorName}${threadSuffix}: ${m.content}`;
+    const toHHMM = (timestamp) => {
+      const timestampString = String(timestamp || '');
+      const timeMatch = timestampString.match(/\b(\d{1,2}):(\d{2})\b/);
+      if (timeMatch) return `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+      const timestampDate = new Date(timestampString);
+      if (!Number.isNaN(timestampDate.getTime())) {
+        const hours = String(timestampDate.getHours()).padStart(2, '0');
+        const minutes = String(timestampDate.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+      }
+      return '';
+    };
+    for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+      const message = messages[messageIndex];
+      const threadSuffix = message.threadName ? ` [${message.threadName}]` : '';
+      const timeLabel = toHHMM(message.timestamp);
+      const head = timeLabel ? `[${timeLabel} #${messageIndex}]` : `[#${messageIndex}]`;
+      const line = `${head} ${message.authorName}${threadSuffix}: ${message.content}`;
       prompt += `${line}\n`;
     }
     return prompt;
