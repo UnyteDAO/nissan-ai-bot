@@ -23,7 +23,6 @@ class SchedulerService {
     this.setupScheduledEvaluation();
     this.setupScheduledChatLogExport();
     this.setupScheduledChannelSummary();
-    logger.info(`Scheduler initialized with cron patterns: evaluation=${config.cron.evaluationSchedule}, export=${config.cron.chatLogExportSchedule}, summary=${config.cron.channelSummarySchedule}`);
   }
 
   /**
@@ -72,10 +71,12 @@ class SchedulerService {
    * Setup scheduled daily channel summary
    */
   setupScheduledChannelSummary() {
+    // Cancel existing task if any
     if (this.channelSummaryTask) {
       this.channelSummaryTask.stop();
     }
 
+    // Schedule daily channel summary
     this.channelSummaryTask = cron.schedule(config.cron.channelSummarySchedule, async () => {
       logger.info('Starting scheduled daily channel summary...');
       await this.runDailyChannelSummary();
