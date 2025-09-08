@@ -174,16 +174,14 @@ ${prompt}`;
       - 文章は300字以内で記述すること
       - URLや長い引用は省略すること
       - 要約文はsummaryに記述すること
-      - 要約文の中では、1文ごとに参照元のメッセージを明示すること。明示する場合はmessageIdsにメッセージIDを配列で記述し、文末に"[0]"のようにmessageIdsの配列のindexを記述すること。複数件ある場合は"[0,1,2]"のように記述すること。
+      - 会話ログは[timestamp #index] author: contentの形式になっている。#indexは0始まりである。
+      - 要約文の中では、1文ごとに参照元のメッセージを明示すること。文末に"[0]"のようにindexを記述すること。複数件ある場合は"[0,1,2]"のように記述すること。
       - チャンネル全体の様子を表す文や締めくくりの文に対しては参照元を示さなくてよい
-      - messageIdsには、その文章の参照元メッセージのIDを配列で記述すること
-      - messageIdsは最大5件までとする
-      - 参照元メッセージのIDがない場合、messageIdsは[]とし、省略しないこと
+      - メッセージの参照は最大5件までとする
 
       JSONの構造は以下のようにしてください:
       {
-        "summary": "要約内容",
-        "messageIds": ["メッセージID1", "メッセージID2", "メッセージID3"]
+        "summary": "要約内容"
       }
       `;
   }
@@ -227,9 +225,10 @@ ${prompt}`;
     let prompt = `対象チャンネル: ${channelName}\n対象日 (JST): ${jstDateLabel}\n\n`;
     prompt += '以下は会話の抜粋です。内容をまとめてください。\n';
     prompt += '会話ログ:\n';
-    for (const m of messages) {
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i];
       const threadSuffix = m.threadName ? ` [${m.threadName}]` : '';
-      const line = `[${m.timestamp} Message ID: ${m.messageId}] ${m.authorName}${threadSuffix}: ${m.content}`;
+      const line = `[${m.timestamp} #${i}] ${m.authorName}${threadSuffix}: ${m.content}`;
       prompt += `${line}\n`;
     }
     return prompt;
@@ -298,36 +297,18 @@ ${prompt}`;
   }
 
   /**
-   * Parse channel summary model response into JSON structure
-   * 仕様: { summary: string, messageIds: string[] }
+   * チャンネル要約モデルの応答をJSONにパース
+   * 仕様: { summary: string }
    * @param {string} responseText
-   * @returns {{summary: string, messageIds: string[]}|null}
+   * @returns {{summary: string}|null}
    */
   parseChannelSummaryResponse(responseText) {
     try {
       const cleaned = responseText.replace(/^```json\n|^```\n|```$/g, '');
       const parsed = JSON.parse(cleaned);
 
-      // 新仕様
-      if (parsed && typeof parsed.summary === 'string' && Array.isArray(parsed.messageIds)) {
-        return { summary: parsed.summary, messageIds: parsed.messageIds };
-      }
-
-      // 旧仕様からのフォールバック: sentences[] を結合し、messageIdsは出現順にユニーク収集
-      if (parsed && Array.isArray(parsed.sentences)) {
-        const sentences = parsed.sentences.filter(s => s && typeof s.sentence === 'string');
-        const summary = sentences.map(s => s.sentence).join('\n');
-        const ids = [];
-        for (const s of sentences) {
-          const arr = Array.isArray(s.messageIds) ? s.messageIds : [];
-          for (const id of arr) {
-            if (typeof id === 'string' || typeof id === 'number') {
-              const str = String(id);
-              if (!ids.includes(str)) ids.push(str);
-            }
-          }
-        }
-        return { summary, messageIds: ids };
+      if (parsed && typeof parsed.summary === 'string') {
+        return { summary: parsed.summary };
       }
 
       throw new Error('Invalid channel summary JSON structure');
@@ -555,34 +536,43 @@ ${prompt}`;
       // JSONを解析し、Discord向けの文+参照リンク形式を構築
       const raw = response.text();
       const parsed = this.parseChannelSummaryResponse(raw);
-      const idToPermalink = new Map();
-      for (const m of messages) {
-        const channelForLink = (m.threadId && String(m.threadId).length > 0) ? m.threadId : m.channelId;
-        if (guildId && channelForLink && m.messageId) {
-          const url = `https://discord.com/channels/${guildId}/${channelForLink}/${m.messageId}`;
-          idToPermalink.set(String(m.messageId), url);
-        }
-      }
 
       let summaryText = '';
-      if (parsed && typeof parsed.summary === 'string' && Array.isArray(parsed.messageIds)) {
+      if (parsed && typeof parsed.summary === 'string') {
         const idxToUrl = (idxStr) => {
           const idx = Number(idxStr.trim());
-          if (!Number.isFinite(idx)) return null;
-          const id = parsed.messageIds[idx];
-          if (!id) return null;
-          return idToPermalink.get(String(id)) || null;
+          if (!Number.isFinite(idx) || idx < 0) return null;
+          // summary内のindexを messages[idx] から直接URL化
+          const m = messages[idx];
+          if (!m) return null;
+          const channelForLink = (m.threadId && String(m.threadId).length > 0) ? m.threadId : m.channelId;
+          if (guildId && channelForLink && m.messageId) {
+            return `https://discord.com/channels/${guildId}/${channelForLink}/${m.messageId}`;
+          }
+          return null;
         };
+
         // [0] や [0, 2] のような参照をリンク群に置換
+        const displayNumberMap = new Map();
+        let nextDisplayNumber = 1;
         const replaced = parsed.summary.replace(/\[(\s*\d+(?:\s*,\s*\d+)*\s*)\]/g, (_m, group) => {
           const parts = group.split(',').map(p => p.trim()).filter(Boolean);
           const links = parts
             .map(p => {
-              const url = idxToUrl(p);
-              if (!url) return null;
               const n = Number(p);
-              const label = Number.isFinite(n) ? n + 1 : null; // 1始まり
-              return label ? `[[${label}]](${url})` : null;
+              if (!Number.isFinite(n)) return null;
+              const key = String(n);
+              const url = idxToUrl(key);
+              if (!url) return null;
+              let label;
+              if (displayNumberMap.has(key)) {
+                label = displayNumberMap.get(key);
+              } else {
+                label = nextDisplayNumber;
+                displayNumberMap.set(key, label);
+                nextDisplayNumber++;
+              }
+              return `[[${label}]](${url})`;
             })
             .filter(Boolean);
           return links.length > 0 ? ` ${links.join(' ')}` : '';
