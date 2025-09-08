@@ -1,0 +1,296 @@
+const { AttachmentBuilder } = require('discord.js');
+const logger = require('../utils/logger');
+const config = require('../config');
+const messageService = require('./messageService');
+
+class LogExportService {
+  constructor() { }
+
+  /**
+   * 前日(JST) 00:00:00.000 〜 23:59:59.999 のUTC範囲を取得
+   * @returns {{ startUtc: Date, endUtc: Date, jstDateLabel: string }}
+   */
+  getPreviousDayJstRange() {
+    const offsetMs = 9 * 60 * 60 * 1000; // JST(+9h)
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + offsetMs);
+    const y = jstNow.getUTCFullYear();
+    const m = jstNow.getUTCMonth();
+    const d = jstNow.getUTCDate();
+
+    // 前日JST 00:00 -> UTC (前々日 15:00)
+    const startUtc = new Date(Date.UTC(y, m, d - 2, 15, 0, 0, 0));
+    // 前日JST 23:59:59.999 -> UTC (前日 14:59:59.999)
+    const endUtc = new Date(Date.UTC(y, m, d - 1, 14, 59, 59, 999));
+
+    // ラベルは前日JSTの日付を使用（startUtcに+9hしてYYYYMMDDを作成）
+    const jstLabelDate = new Date(startUtc.getTime() + offsetMs);
+    const yyyy = jstLabelDate.getUTCFullYear();
+    const mm = String(jstLabelDate.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(jstLabelDate.getUTCDate()).padStart(2, '0');
+    const jstDateLabel = `${yyyy}${mm}${dd}`;
+
+    return { startUtc, endUtc, jstDateLabel };
+  }
+
+  /**
+   * JSTの日時文字列に整形
+   * @param {Date} date
+   * @returns {string}
+   */
+  formatJst(date) {
+    return new Date(date).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', hour12: false });
+  }
+
+  /**
+   * CSV行用に値をエスケープ
+   * @param {string|number|boolean|null|undefined} value
+   * @returns {string}
+   */
+  csvEscape(value) {
+    if (value === null || value === undefined) return '""';
+    let str = String(value);
+    // 2重引用符のエスケープ
+    str = str.replace(/"/g, '""');
+    return `"${str}"`;
+  }
+
+  /**
+   * ファイル名をサニタイズ（日本語などUnicodeは保持、禁止記号のみ置換）
+   * @param {string} name
+   * @returns {string}
+   */
+  sanitizeFileName(name) {
+    if (!name) return 'file';
+    const normalized = name.normalize('NFKC');
+    // Windows/Unixで問題になる文字を置換: \ / : * ? " < > | と制御文字
+    return normalized
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/[\x00-\x1F\x7F]/g, '_')
+      .trim();
+  }
+
+  /**
+   * Snowflake ID から UNIX ms を取得
+   * @param {string} id
+   * @returns {number|null}
+   */
+  getTimestampFromSnowflake(id) {
+    try {
+      const snow = BigInt(id);
+      // Discord epoch (2015-01-01T00:00:00.000Z)
+      const ms = Number((snow >> 22n) + 1420070400000n);
+      return ms;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * スレッドが対象期間にメッセージを含む可能性があるかを簡易判定
+   * @param {import('discord.js').ThreadChannel} thread
+   * @param {Date} startUtc
+   * @returns {boolean}
+   */
+  threadLikelyHasMessagesInRange(thread, startUtc) {
+    if (!thread || !thread.lastMessageId) return true; // 不明時は残す（安全側）
+    const lastMs = this.getTimestampFromSnowflake(thread.lastMessageId);
+    if (lastMs === null) return true;
+    return lastMs >= startUtc.getTime();
+  }
+
+  /**
+   * スレッド（アクティブ/アーカイブ）を取得
+   * @param {import('discord.js').TextChannel} channel
+   * @returns {Promise<Array<import('discord.js').ThreadChannel>>}
+   */
+  async fetchAllThreads(channel) {
+    const threads = [];
+    try {
+      const active = await channel.threads.fetchActive();
+      if (active && active.threads) {
+        active.threads.forEach(t => threads.push(t));
+      }
+    } catch (e) {
+      logger.warn(`Failed to fetch active threads for #${channel.name}:`, e.message || e);
+    }
+    try {
+      // 公開アーカイブ
+      const archivedPublic = await channel.threads.fetchArchived({ type: 'public' });
+      if (archivedPublic && archivedPublic.threads) {
+        archivedPublic.threads.forEach(t => threads.push(t));
+      }
+    } catch (e) {
+      logger.warn(`Failed to fetch archived public threads for #${channel.name}:`, e.message || e);
+    }
+    return threads;
+  }
+
+  /**
+   * 指定チャンネル（および配下スレッド）から期間内のメッセージを収集
+   * @param {import('discord.js').Client} client
+   * @param {string} channelId
+   * @param {Date} startUtc
+   * @param {Date} endUtc
+   * @returns {Promise<{ channelName: string, rows: string[] }>} rows はヘッダ除くデータ行
+   */
+  async collectChannelLogs(client, channelId, startUtc, endUtc) {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel) {
+      logger.warn(`Source channel not found: ${channelId}`);
+      return { channelName: `channel_${channelId}`, rows: [] };
+    }
+
+    // Text系のみ対象
+    if (!('messages' in channel)) {
+      logger.warn(`Channel is not text-based: ${channelId}`);
+      return { channelName: channel.name || `channel_${channelId}`, rows: [] };
+    }
+
+    const header = [
+      'timestamp_jst',
+      'message_id',
+      'channel_id',
+      'channel_name',
+      'thread_id',
+      'thread_name',
+      'author_id',
+      'author_name',
+      'content',
+      'mentions_user_ids',
+      'attachments_count',
+      'attachments_urls',
+      'is_reply',
+      'reply_to_message_id',
+    ].map(h => this.csvEscape(h)).join(',');
+
+    const rows = [header];
+
+    // 親チャンネルのメッセージ
+    const channelMessages = await messageService.fetchChannelMessages(channel, startUtc, endUtc);
+    for (const msg of channelMessages) {
+      rows.push(this.buildCsvRow(msg, channel.id, channel.name, '', ''));
+    }
+
+    // スレッドも対象
+    const threads = await this.fetchAllThreads(channel);
+    const candidateThreads = threads.filter(t => this.threadLikelyHasMessagesInRange(t, startUtc));
+    for (const thread of candidateThreads) {
+      const threadMessages = await messageService.fetchChannelMessages(thread, startUtc, endUtc);
+      for (const msg of threadMessages) {
+        // 親チャンネル情報 + スレッド情報を別列に出力
+        rows.push(this.buildCsvRow(msg, channel.id, channel.name, thread.id, thread.name));
+      }
+    }
+
+    return { channelName: channel.name || `channel_${channelId}`, rows };
+  }
+
+  /**
+   * 1メッセージをCSV行に整形
+   * @param {import('discord.js').Message} msg
+   * @param {string} outChannelId
+   * @param {string} outChannelName
+   * @returns {string}
+   */
+  buildCsvRow(msg, outChannelId, outChannelName, threadId = '', threadName = '') {
+    const timestampJst = this.formatJst(new Date(msg.createdTimestamp));
+    const mentions = Array.from(msg.mentions?.users?.keys?.() || []);
+    const attachments = Array.from(msg.attachments?.values?.() || []);
+    const attachmentUrls = attachments.map(a => a.url).join(';');
+    const isReply = !!msg.reference;
+    const replyTo = msg.reference?.messageId || '';
+
+    const columns = [
+      timestampJst,
+      msg.id,
+      outChannelId,
+      outChannelName || '',
+      threadId || '',
+      threadName || '',
+      msg.author?.id || '',
+      msg.author?.username || '',
+      msg.content || '',
+      mentions.join('|'),
+      attachments.length,
+      attachmentUrls,
+      isReply,
+      replyTo,
+    ];
+
+    return columns.map(v => this.csvEscape(v)).join(',');
+  }
+
+  /**
+   * 1つのCSV添付を作成
+   * @param {string[]} rows
+   * @param {string} fileName
+   * @returns {AttachmentBuilder}
+   */
+  buildSingleAttachment(rows, fileName) {
+    const csv = rows.join('\n');
+    const buf = Buffer.from(csv, 'utf-8');
+    return new AttachmentBuilder(buf, { name: `${fileName}.csv` });
+  }
+
+  /**
+   * 前日分のメッセージを収集してCSV化し、送信先に投稿
+   * @param {import('discord.js').Client} client
+   */
+  async exportPreviousDayAndSend(client) {
+    try {
+      const { startUtc, endUtc, jstDateLabel } = this.getPreviousDayJstRange();
+
+      if (!config.logsExport.exportChannelId) {
+        logger.warn('LOG_EXPORT_CHANNEL_ID is not configured');
+        return;
+      }
+      if (!config.logsExport.sourceChannelIds || config.logsExport.sourceChannelIds.length === 0) {
+        logger.warn('LOG_SOURCE_CHANNEL_IDS is not configured');
+        return;
+      }
+
+      const exportChannel = await client.channels.fetch(config.logsExport.exportChannelId).catch(() => null);
+      if (!exportChannel) {
+        logger.warn(`Export channel not found: ${config.logsExport.exportChannelId}`);
+        return;
+      }
+
+      let totalCount = 0;
+      const allAttachments = [];
+      const detailLines = [];
+
+      for (const sourceId of config.logsExport.sourceChannelIds) {
+        const { channelName, rows } = await this.collectChannelLogs(client, sourceId, startUtc, endUtc);
+        const count = Math.max(0, rows.length - 1); // ヘッダ除く
+        totalCount += count;
+        detailLines.push(`• #${channelName || sourceId}: ${count}件`);
+
+        const safeName = this.sanitizeFileName(channelName || `channel_${sourceId}`);
+        const fileName = this.sanitizeFileName(`messages_${safeName}_${jstDateLabel}`);
+        const attachment = this.buildSingleAttachment(rows, fileName);
+        allAttachments.push(attachment);
+      }
+
+      const headerText = `【日次チャットログ収集レポート】 \n` +
+        `[期間]\n${this.formatJst(startUtc)} 〜 ${this.formatJst(endUtc)}\n` +
+        `[件数]\n${totalCount}件\n[対象チャンネル]\n` +
+        (detailLines.length ? detailLines.join('\n') : '');
+
+      if (allAttachments.length === 0) {
+        await exportChannel.send({ content: headerText + '\n\n対象期間のメッセージはありませんでした。' });
+        logger.info('No messages found for export. Sent notification.');
+        return;
+      }
+
+      await exportChannel.send({ content: headerText, files: allAttachments });
+      logger.info(`Exported ${allAttachments.length} CSV file(s) for ${jstDateLabel}`);
+    } catch (error) {
+      logger.error('Error exporting daily logs:', error);
+    }
+  }
+}
+
+module.exports = new LogExportService();
+
+

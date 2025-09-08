@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const evaluationService = require('./evaluationService');
+const logExportService = require('./logExportService');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -7,6 +8,7 @@ class SchedulerService {
   constructor() {
     this.client = null;
     this.scheduledTask = null;
+    this.logsTask = null;
   }
 
   /**
@@ -16,6 +18,7 @@ class SchedulerService {
   initialize(client) {
     this.client = client;
     this.setupScheduledEvaluation();
+    this.setupScheduledLogExport();
     logger.info(`Scheduler initialized with cron pattern: ${config.cron.schedule}`);
   }
 
@@ -41,6 +44,27 @@ class SchedulerService {
   }
 
   /**
+   * Setup scheduled daily log export at 18:00 JST
+   */
+  setupScheduledLogExport() {
+    // Cancel existing task if any
+    if (this.logsTask) {
+      this.logsTask.stop();
+    }
+
+    // Schedule daily log export at 18:00 JST
+    this.logsTask = cron.schedule(config.cron.schedule, async () => {
+      logger.info('Starting scheduled daily log export...');
+      await this.runDailyLogExport();
+    }, {
+      scheduled: true,
+      timezone: 'Asia/Tokyo'
+    });
+
+    logger.info('Daily log export scheduled at 18:00 JST');
+  }
+
+  /**
    * Run daily evaluation for all guilds
    */
   async runDailyEvaluation() {
@@ -53,16 +77,16 @@ class SchedulerService {
       for (const guild of this.client.guilds.cache.values()) {
         try {
           logger.info(`Running scheduled evaluation for guild: ${guild.name}`);
-          
+
           // Run evaluation
           const results = await evaluationService.evaluateGuild(guild, startDate, endDate);
-          
+
           // Post results to notification channel
           await this.postEvaluationNotification(guild, results);
-          
+
           // Post detailed results to result channel
           await this.postDetailedResults(guild, results);
-          
+
         } catch (error) {
           logger.error(`Error evaluating guild ${guild.name}:`, error);
         }
@@ -108,7 +132,7 @@ class SchedulerService {
             },
             {
               name: 'トップ貢献者',
-              value: results.summary.statistics.topContributors.length > 0 
+              value: results.summary.statistics.topContributors.length > 0
                 ? `<@${results.summary.statistics.topContributors[0].userId}> (${results.summary.statistics.topContributors[0].totalScore}点)`
                 : 'なし',
               inline: true,
@@ -197,7 +221,7 @@ class SchedulerService {
         for (const evaluation of topEvaluations) {
           const topParticipant = Object.entries(evaluation.evaluation.participants)
             .sort(([, a], [, b]) => b.score - a.score)[0];
-          
+
           if (topParticipant) {
             notableText += `• <@${topParticipant[0]}>: ${topParticipant[1].score}点\n`;
             if (evaluation.evaluation.summary) {
@@ -205,7 +229,7 @@ class SchedulerService {
             }
           }
         }
-        
+
         await channel.send(notableText.substring(0, 2000));
       }
 
@@ -223,6 +247,10 @@ class SchedulerService {
       this.scheduledTask.stop();
       logger.info('Scheduler stopped');
     }
+    if (this.logsTask) {
+      this.logsTask.stop();
+      logger.info('Log export scheduler stopped');
+    }
   }
 
   /**
@@ -231,6 +259,17 @@ class SchedulerService {
   async triggerManualEvaluation() {
     logger.info('Manual evaluation triggered');
     await this.runDailyEvaluation();
+  }
+
+  /**
+   * Run daily log export job
+   */
+  async runDailyLogExport() {
+    try {
+      await logExportService.exportPreviousDayAndSend(this.client);
+    } catch (error) {
+      logger.error('Error in daily log export:', error);
+    }
   }
 }
 

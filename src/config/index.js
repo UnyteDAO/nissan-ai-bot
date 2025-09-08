@@ -17,8 +17,14 @@ const config = {
   channels: {
     evaluationResultChannelId: process.env.EVALUATION_RESULT_CHANNEL_ID,
     summaryNotificationChannelId: process.env.SUMMARY_NOTIFICATION_CHANNEL_ID,
-    excludedChannelIds: process.env.EXCLUDED_CHANNEL_IDS ? 
+    excludedChannelIds: process.env.EXCLUDED_CHANNEL_IDS ?
       process.env.EXCLUDED_CHANNEL_IDS.split(',').map(id => id.trim()) : [],
+  },
+  logsExport: {
+    sourceChannelIds: process.env.LOG_SOURCE_CHANNEL_IDS
+      ? process.env.LOG_SOURCE_CHANNEL_IDS.split(',').map(id => id.trim()).filter(Boolean)
+      : [],
+    exportChannelId: process.env.LOG_EXPORT_CHANNEL_ID || null,
   },
   cron: {
     schedule: process.env.CRON_SCHEDULE || '0 18 * * *',
