@@ -27,7 +27,10 @@ const config = {
     exportChannelId: process.env.LOG_EXPORT_CHANNEL_ID || null,
   },
   cron: {
-    schedule: process.env.CRON_SCHEDULE || '0 18 * * *',
+    // todo 確実にenvの値で実行するにはenvに値が存在しない場合エラーを返すようにする
+    evaluationSchedule: process.env.CRON_EVALUATION_SCHEDULE || '0 18 * * *',
+    chatLogExportSchedule: process.env.CRON_CHAT_LOG_EXPORT_SCHEDULE || '0 18 * * *',
+    channelSummarySchedule: process.env.CRON_CHANNEL_SUMMARY_SCHEDULE || '0 19 * * *',
   },
   evaluation: {
     maxThreadsPerRun: parseInt(process.env.MAX_THREADS_PER_EVALUATION) || 50,

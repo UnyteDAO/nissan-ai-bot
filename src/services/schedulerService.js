@@ -11,6 +11,7 @@ class SchedulerService {
     this.evaluationTask = null;
     this.chatLogExportTask = null;
     this.channelSummaryTask = null;
+    this.timezone = 'Asia/Tokyo';
   }
 
   /**
@@ -22,7 +23,7 @@ class SchedulerService {
     this.setupScheduledEvaluation();
     this.setupScheduledChatLogExport();
     this.setupScheduledChannelSummary();
-    logger.info(`Scheduler initialized with cron pattern: ${config.cron.schedule}`);
+    logger.info(`Scheduler initialized with cron patterns: evaluation=${config.cron.evaluationSchedule}, export=${config.cron.chatLogExportSchedule}, summary=${config.cron.channelSummarySchedule}`);
   }
 
   /**
@@ -35,15 +36,15 @@ class SchedulerService {
     }
 
     // Schedule daily evaluation
-    this.evaluationTask = cron.schedule(config.cron.schedule, async () => {
+    this.evaluationTask = cron.schedule(config.cron.evaluationSchedule, async () => {
       logger.info('Starting scheduled daily evaluation...');
       await this.runDailyEvaluation();
     }, {
       scheduled: true,
-      timezone: 'Asia/Tokyo'
+      timezone: this.timezone
     });
 
-    logger.info('Daily evaluation scheduled at 18:00 JST');
+    logger.info(`Daily evaluation scheduled with cron: ${config.cron.evaluationSchedule} (${this.timezone})`);
   }
 
   /**
@@ -56,34 +57,34 @@ class SchedulerService {
     }
 
     // Schedule daily chat log export
-    this.chatLogExportTask = cron.schedule(config.cron.schedule, async () => {
+    this.chatLogExportTask = cron.schedule(config.cron.chatLogExportSchedule, async () => {
       logger.info('Starting scheduled daily chat log export...');
       await this.runDailyChatLogExport();
     }, {
       scheduled: true,
-      timezone: 'Asia/Tokyo'
+      timezone: this.timezone
     });
 
-    logger.info('Daily log export scheduled at 18:00 JST');
+    logger.info(`Daily log export scheduled with cron: ${config.cron.chatLogExportSchedule} (${this.timezone})`);
   }
 
   /**
-   * Setup scheduled daily log summary at 19:00 JST (configurable)
+   * Setup scheduled daily log summary
    */
   setupScheduledChannelSummary() {
     if (this.channelSummaryTask) {
       this.channelSummaryTask.stop();
     }
 
-    this.channelSummaryTask = cron.schedule('0 19 * * *', async () => {
+    this.channelSummaryTask = cron.schedule(config.cron.channelSummarySchedule, async () => {
       logger.info('Starting scheduled daily channel summary...');
       await this.runDailyChannelSummary();
     }, {
       scheduled: true,
-      timezone: 'Asia/Tokyo'
+      timezone: this.timezone
     });
 
-    logger.info('Daily log summary scheduled at 19:00 JST');
+    logger.info(`Daily log summary scheduled with cron: ${config.cron.channelSummarySchedule} (${this.timezone})`);
   }
 
   /**
