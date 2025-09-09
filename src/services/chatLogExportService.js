@@ -143,9 +143,11 @@ class LogExportService {
       return { channelName: `channel_${channelId}`, rows: [] };
     }
 
-    // Text系のみ対象
-    if (!('messages' in channel)) {
-      logger.warn(`Channel is not text-based: ${channelId}`);
+    // Textベース または スレッドを持つチャンネルのみ対象（Forum対応）
+    const isTextBased = 'messages' in channel;
+    const hasThreads = 'threads' in channel;
+    if (!isTextBased && !hasThreads) {
+      logger.warn(`Channel is neither text-based nor thread-capable: ${channelId}`);
       return { channelName: channel.name || `channel_${channelId}`, rows: [] };
     }
 
@@ -168,20 +170,24 @@ class LogExportService {
 
     const rows = [header];
 
-    // 親チャンネルのメッセージ
-    const channelMessages = await messageService.fetchChannelMessages(channel, startUtc, endUtc);
-    for (const msg of channelMessages) {
-      rows.push(this.buildCsvRow(msg, channel.id, channel.name, '', ''));
+    // 親チャンネルのメッセージ（テキストベースのみ）
+    if (isTextBased) {
+      const channelMessages = await messageService.fetchChannelMessages(channel, startUtc, endUtc);
+      for (const msg of channelMessages) {
+        rows.push(this.buildCsvRow(msg, channel.id, channel.name, '', ''));
+      }
     }
 
-    // スレッドも対象
-    const threads = await this.fetchAllThreads(channel);
-    const candidateThreads = threads.filter(t => this.threadLikelyHasMessagesInRange(t, startUtc));
-    for (const thread of candidateThreads) {
-      const threadMessages = await messageService.fetchChannelMessages(thread, startUtc, endUtc);
-      for (const msg of threadMessages) {
-        // 親チャンネル情報 + スレッド情報を別列に出力
-        rows.push(this.buildCsvRow(msg, channel.id, channel.name, thread.id, thread.name));
+    // スレッドも対象（スレッドを持つチャンネルのみ）
+    if (hasThreads) {
+      const threads = await this.fetchAllThreads(channel);
+      const candidateThreads = threads.filter(t => this.threadLikelyHasMessagesInRange(t, startUtc));
+      for (const thread of candidateThreads) {
+        const threadMessages = await messageService.fetchChannelMessages(thread, startUtc, endUtc);
+        for (const msg of threadMessages) {
+          // 親チャンネル情報 + スレッド情報を別列に出力
+          rows.push(this.buildCsvRow(msg, channel.id, channel.name, thread.id, thread.name));
+        }
       }
     }
 
