@@ -19,6 +19,7 @@ const config = {
     summaryNotificationChannelId: process.env.SUMMARY_NOTIFICATION_CHANNEL_ID,
     excludedChannelIds: process.env.EXCLUDED_CHANNEL_IDS ?
       process.env.EXCLUDED_CHANNEL_IDS.split(',').map(id => id.trim()) : [],
+    userScoreTargetChannelId: process.env.USER_SCORE_CHANNEL_ID || null,
   },
   logsExport: {
     sourceChannelIds: process.env.LOG_SOURCE_CHANNEL_IDS
