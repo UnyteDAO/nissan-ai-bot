@@ -647,9 +647,6 @@ ${prompt}`;
     "tone": 0.00,
     "execution": 0.00
   },
-  "evidence": [
-    {"message_idx": "<index>", "quote": "<短い抜粋>", "reason": "<どの観点で何が評価点か>"}
-  ],
   "notes": "<判断の留保や前提>"
 }`;
   }
@@ -679,7 +676,7 @@ ${prompt}`;
   /**
    * Parse user centrality response
    * @param {string} responseText
-   * @returns {{scores:Object,evidence:Array,notes:string}}
+   * @returns {{scores:Object,notes:string}}
    */
   parseUserCentralityResponse(responseText) {
     try {
@@ -742,11 +739,6 @@ ${prompt}`;
           tone: toNum(scores.tone),
           execution: toNum(scores.execution),
         },
-        evidence: Array.isArray(parsed.evidence) ? parsed.evidence.slice(0, 5).map(e => ({
-          message_idx: String(e.message_idx ?? ''),
-          quote: String(e.quote ?? ''),
-          reason: String(e.reason ?? ''),
-        })) : [],
         notes: typeof parsed.notes === 'string' ? parsed.notes : '',
       };
       return result;
@@ -763,7 +755,6 @@ ${prompt}`;
           tone: 0,
           execution: 0,
         },
-        evidence: [],
         notes: 'parse_error',
       };
     }
@@ -858,7 +849,6 @@ ${prompt}`;
           tone: 0,
           execution: 0,
         },
-        evidence: [],
         notes: 'api_error',
       };
     }

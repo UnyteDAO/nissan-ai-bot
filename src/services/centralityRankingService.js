@@ -243,7 +243,7 @@ class CentralityRankingService {
       qualitative.set(userId, result);
     }
 
-    return qualitative; // Map<userId, {scores, evidence, notes}>
+    return qualitative; // Map<userId, {scores, notes}>
   }
 
   /**
