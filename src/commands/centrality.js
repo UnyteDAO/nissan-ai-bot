@@ -1,11 +1,11 @@
 const { SlashCommandBuilder } = require('discord.js');
-const userScoreService = require('../services/userScoreService');
+const centralityRankingService = require('../services/centralityRankingService');
 const logger = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('user-score')
-    .setDescription('過去N日のユーザースコアCSVを生成し、AI混合スコアを算出します（USER_SCORE_CHANNEL_ID対象）')
+    .setName('centrality')
+    .setDescription('過去N日の中心性ランキングを生成し、AI混合スコアを算出します（USER_SCORE_CHANNEL_ID対象）')
     .addIntegerOption(option =>
       option.setName('days')
         .setDescription('集計日数 (既定: 30)')
@@ -21,7 +21,7 @@ module.exports = {
       const days = interaction.options.getInteger('days') || 30;
       const client = interaction.client;
 
-      const { filePath, startDate, endDate, channel } = await userScoreService.exportForEnvChannel(client, days);
+      const { filePath, startDate, endDate, channel } = await centralityRankingService.exportForEnvChannel(client, days);
 
       await interaction.editReply({
         content: `✅ ユーザースコアCSVを生成しました\n対象チャンネル: <#${channel.id}>\n期間: ${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')}\n出力: ${filePath}`,

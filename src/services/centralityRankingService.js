@@ -5,7 +5,7 @@ const config = require('../config');
 const messageService = require('./messageService');
 const geminiService = require('./geminiService');
 
-class UserScoreService {
+class CentralityRankingService {
   constructor() {
     this.outputDir = path.join(__dirname, '../../logs/user_score');
   }
@@ -609,6 +609,6 @@ class UserScoreService {
   }
 }
 
-module.exports = new UserScoreService();
+module.exports = new CentralityRankingService();
 
 

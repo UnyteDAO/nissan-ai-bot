@@ -818,19 +818,19 @@ ${prompt}`;
         metadata: { userId: user.id, channelName, messageCount: messageLines.length },
       });
 
-      // ローカルAIログ
+      // ローカルAIログ（カテゴリ: centrality_ranking）
       if (config.logging.enableAiInstructionLogging) {
         try {
           await aiInstructionLogger.logInstruction({
             userId: user?.id || 'system',
             instruction: `${systemPrompt}\n\n${prompt}`,
             response: responseText,
-            category: 'user_score',
+            category: 'centrality_ranking',
             baseScore: 100,
             notes: `User centrality evaluation for user: ${user?.id} in channel: ${channelName}\nmessagesSampled: ${messageLines.length}, totalTokens: ${result.response.usageMetadata?.totalTokenCount || 0}`
           });
         } catch (logError) {
-          logger.error('Failed to log AI instruction (user_score):', logError);
+          logger.error('Failed to log AI instruction (centrality_ranking):', logError);
         }
       }
 
