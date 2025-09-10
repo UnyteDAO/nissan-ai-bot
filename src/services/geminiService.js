@@ -9,7 +9,7 @@ class GeminiService {
     this.genAI = new GoogleGenerativeAI(config.gemini.apiKey);
     this.modelName = config.gemini.model || 'gemini-1.5-flash';
     this.model = this.genAI.getGenerativeModel({ model: this.modelName });
-    this.maxTokens = 8192;
+    this.maxTokens = 16384;
   }
 
   /**
@@ -611,6 +611,258 @@ ${prompt}`;
         });
       }
       return 'エラーが発生しました';
+    }
+  }
+
+  /**
+   * User Centrality: system prompt
+   */
+  getUserCentralitySystemPrompt() {
+    return `あなたはコミュニティ運営の専門アナリストです。与えられたDiscordメッセージ群から、指定ユーザーがチャンネル内でどれだけ中心的な役割を果たしているかを評価してください。
+定義: 「中心的役割」とは、会話と作業の流れを前進させ、人と情報をつなぎ、意思決定を促し、議論を適切に収束させる力です。単なる発話量は重視しません。具体的な貢献と他者への影響を構造化して評価します。
+観点と採点（0.0〜1.0、小数第2位まで、0/0.5/1のアンカーを意識）:
+  1) 調整・ファシリテーション (facilitation)
+  2) 問題解決・方向付け (problem_solving)
+  3) 情報ハブ・仲介 (broker)
+  4) 参加促進・巻き込み (engagement)
+  5) スレッド運営（開始・収束）(thread_management)
+  6) 知識貢献・根拠提示 (knowledge)
+  7) トーン/秩序維持 (tone)
+  8) 実行駆動 (execution)
+
+バイアス回避:
+  - 発話量や絵文字/雑談の多さは加点しない
+  - 役職・肩書を根拠にしない（内容ベース）
+  - 推測ではなく、証拠となるメッセージ断片に基づく
+
+出力は必ず以下のJSONのみを返してください。説明文やマークダウンは不要です。
+{
+  "scores": {
+    "facilitation": 0.00,
+    "problem_solving": 0.00,
+    "broker": 0.00,
+    "engagement": 0.00,
+    "thread_management": 0.00,
+    "knowledge": 0.00,
+    "tone": 0.00,
+    "execution": 0.00
+  },
+  "evidence": [
+    {"message_idx": "<index>", "quote": "<短い抜粋>", "reason": "<どの観点で何が評価点か>"}
+  ],
+  "notes": "<判断の留保や前提>"
+}`;
+  }
+
+  /**
+   * Build user centrality prompt with inlined message list
+   * @param {Object} params
+   * @param {string} params.channelName
+   * @param {{id:string,name:string}} params.user
+   * @param {{start:Date,end:Date}} params.window
+   * @param {string[]} params.messageLines - lines like "[YYYY-MM-DD HH:mm #0] content"
+   */
+  buildUserCentralityPrompt({ channelName, user, window, messageLines }) {
+    let prompt = '';
+    prompt += `対象チャンネル: ${channelName}\n`;
+    prompt += `評価ユーザー: ${user.name} (${user.id})\n`;
+    prompt += `評価期間: ${window.start.toLocaleString('ja-JP')} - ${window.end.toLocaleString('ja-JP')}\n\n`;
+    prompt += '以下は当該ユーザーが投稿したメッセージの一覧です。各行は [タイムスタンプ #index] 形式です。#indexは0始まりです。\n';
+    prompt += 'メッセージ一覧:\n';
+    for (const line of messageLines) {
+      prompt += `${line}\n`;
+    }
+    prompt += '\n上記のみを根拠として、指定されたJSONフォーマットで評価結果を返してください。';
+    return prompt;
+  }
+
+  /**
+   * Parse user centrality response
+   * @param {string} responseText
+   * @returns {{scores:Object,evidence:Array,notes:string}}
+   */
+  parseUserCentralityResponse(responseText) {
+    try {
+      const extractJsonString = (text) => {
+        if (!text || typeof text !== 'string') return null;
+        // 1) フェンス付き ```json ... ``` or ``` ... ```
+        let m = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/i);
+        if (m && m[1]) return m[1].trim();
+        // 2) 最初の { から波括弧バランスが0になる位置まで抽出（文字列内の{}は無視）
+        const start = text.indexOf('{');
+        if (start === -1) return null;
+        let depth = 0;
+        let inStr = false;
+        let esc = false;
+        for (let i = start; i < text.length; i++) {
+          const ch = text[i];
+          if (inStr) {
+            if (esc) {
+              esc = false;
+            } else if (ch === '\\') {
+              esc = true;
+            } else if (ch === '"') {
+              inStr = false;
+            }
+          } else {
+            if (ch === '"') {
+              inStr = true;
+            } else if (ch === '{') {
+              depth++;
+            } else if (ch === '}') {
+              depth--;
+              if (depth === 0) {
+                return text.slice(start, i + 1).trim();
+              }
+            }
+          }
+        }
+        return null;
+      };
+
+      let jsonStr = extractJsonString(String(responseText || '').trim());
+      if (!jsonStr) throw new Error('No JSON found');
+      // 末尾カンマの修復
+      jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
+      const parsed = JSON.parse(jsonStr);
+      const scores = parsed.scores || {};
+      const toNum = (v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return 0;
+        return Math.max(0, Math.min(1, n));
+      };
+      const result = {
+        scores: {
+          facilitation: toNum(scores.facilitation),
+          problem_solving: toNum(scores.problem_solving),
+          broker: toNum(scores.broker),
+          engagement: toNum(scores.engagement),
+          thread_management: toNum(scores.thread_management),
+          knowledge: toNum(scores.knowledge),
+          tone: toNum(scores.tone),
+          execution: toNum(scores.execution),
+        },
+        evidence: Array.isArray(parsed.evidence) ? parsed.evidence.slice(0, 5).map(e => ({
+          message_idx: String(e.message_idx ?? ''),
+          quote: String(e.quote ?? ''),
+          reason: String(e.reason ?? ''),
+        })) : [],
+        notes: typeof parsed.notes === 'string' ? parsed.notes : '',
+      };
+      return result;
+    } catch (e) {
+      logger.warn('Failed to parse user centrality JSON', e);
+      return {
+        scores: {
+          facilitation: 0,
+          problem_solving: 0,
+          broker: 0,
+          engagement: 0,
+          thread_management: 0,
+          knowledge: 0,
+          tone: 0,
+          execution: 0,
+        },
+        evidence: [],
+        notes: 'parse_error',
+      };
+    }
+  }
+
+  /**
+   * Evaluate user centrality from message lines
+   * @param {Object} params
+   * @param {string} params.channelName
+   * @param {{id:string,name:string}} params.user
+   * @param {{start:Date,end:Date}} params.window
+   * @param {string[]} params.messageLines
+   */
+  async evaluateUserCentralityFromLines({ channelName, user, window, messageLines }) {
+    const startTime = Date.now();
+    let apiLogId = null;
+    try {
+      const systemPrompt = this.getUserCentralitySystemPrompt();
+      const prompt = this.buildUserCentralityPrompt({ channelName, user, window, messageLines });
+      const fullPrompt = `${systemPrompt}\n\n${prompt}`;
+
+      const generationConfig = { temperature: 0.2, maxOutputTokens: this.maxTokens };
+      const result = await this.model.generateContent({
+        contents: [{ parts: [{ text: fullPrompt }] }],
+        generationConfig,
+      });
+      const response = result.response;
+      const responseText = response ? response.text() : '';
+      if (!responseText || responseText.trim().length === 0) {
+        logger.warn('Gemini returned empty response for user centrality', {
+          userId: user?.id,
+          channelName,
+          messageCount: messageLines.length,
+        });
+      }
+      logger.info(`🐼response: ${responseText}`);
+
+      // APIログ
+      apiLogId = await apiLogModel.logApiCall({
+        type: 'user_centrality',
+        model: this.modelName,
+        request: { system: systemPrompt, prompt, max_tokens: this.maxTokens, temperature: 0.2 },
+        response: {
+          content: responseText,
+          usage: {
+            promptTokens: result.response.usageMetadata?.promptTokenCount || 0,
+            completionTokens: result.response.usageMetadata?.candidatesTokenCount || 0,
+            totalTokens: result.response.usageMetadata?.totalTokenCount || 0,
+          },
+        },
+        duration: Date.now() - startTime,
+        metadata: { userId: user.id, channelName, messageCount: messageLines.length },
+      });
+
+      // ローカルAIログ
+      if (config.logging.enableAiInstructionLogging) {
+        try {
+          await aiInstructionLogger.logInstruction({
+            userId: user?.id || 'system',
+            instruction: `${systemPrompt}\n\n${prompt}`,
+            response: responseText,
+            category: 'user_score',
+            baseScore: 100,
+            notes: `User centrality evaluation for user: ${user?.id} in channel: ${channelName}\nmessagesSampled: ${messageLines.length}, totalTokens: ${result.response.usageMetadata?.totalTokenCount || 0}`
+          });
+        } catch (logError) {
+          logger.error('Failed to log AI instruction (user_score):', logError);
+        }
+      }
+
+      const parsed = this.parseUserCentralityResponse(responseText);
+      logger.info(`🐼parsed: ${JSON.stringify(parsed)}`);
+      return parsed;
+    } catch (error) {
+      logger.error('Error evaluating user centrality:', error);
+      if (!apiLogId) {
+        await apiLogModel.logApiCall({
+          type: 'user_centrality',
+          model: this.modelName,
+          request: { user: user?.id, channelName },
+          error,
+          duration: Date.now() - startTime,
+          metadata: { userId: user?.id, channelName },
+        });
+      }
+      return {
+        scores: {
+          facilitation: 0,
+          problem_solving: 0,
+          broker: 0,
+          engagement: 0,
+          thread_management: 0,
+          knowledge: 0,
+          tone: 0,
+          execution: 0,
+        },
+        evidence: [],
+        notes: 'api_error',
+      };
     }
   }
 }

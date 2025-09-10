@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('user-score')
-    .setDescription('過去30日のユーザースコアCSVを生成します（envのUSER_SCORE_CHANNEL_ID対象）')
+    .setDescription('過去N日のユーザースコアCSVを生成し、AI混合スコアを算出します（USER_SCORE_CHANNEL_ID対象）')
     .addIntegerOption(option =>
       option.setName('days')
         .setDescription('集計日数 (既定: 30)')
