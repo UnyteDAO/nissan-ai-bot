@@ -558,9 +558,15 @@ class CentralityRankingService {
       // 日付範囲
       const { startDate, endDate } = this.getDateRange(days);
       // 定量スコアを集計
+      logger.info(`定量スコア集計を開始: channel=${channel.id}, 期間=${startDate.toISOString()} - ${endDate.toISOString()}`);
+      const tQuantStart = Date.now();
       const metricsMap = await this.collectMetricsForChannel(channel, startDate, endDate);
+      logger.info(`定量スコア集計が完了: ユーザー数=${metricsMap.size}, 所要ms=${Date.now() - tQuantStart}`);
       // 定性AIスコアを算出
+      logger.info(`定性スコア算出を開始: 対象ユーザー数=${metricsMap.size}`);
+      const tQualStart = Date.now();
       const qualitative = await this.evaluateQualitativeScores(channel, startDate, endDate, metricsMap);
+      logger.info(`定性スコア算出が完了: ユーザー数=${qualitative.size}, 所要ms=${Date.now() - tQualStart}`);
       // 混合スコアを算出
       const mixed = this.computeMixedScores(metricsMap, qualitative);
 
@@ -573,7 +579,13 @@ class CentralityRankingService {
 
       // ランキング文面の作成と送信
       const chunks = this.createRankingMessageChunks(channel, { startDate, endDate }, mixed, metricsMap, qualitative);
-      await this.sendRankingChunks(client, chunks);
+      // await this.sendRankingChunks(client, chunks);
+      logger.info('--------------------------------');
+      logger.info('🐼 中心的なユーザーランキング');
+      for (const chunk of chunks) {
+        logger.info(chunk);
+      }
+      logger.info('--------------------------------');
 
       return { startDate, endDate, channel, mixedScores: mixed };
     } catch (e) {
