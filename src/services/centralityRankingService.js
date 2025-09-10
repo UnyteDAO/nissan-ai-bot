@@ -1,14 +1,10 @@
-const fs = require('fs').promises;
-const path = require('path');
 const logger = require('../utils/logger');
 const config = require('../config');
 const messageService = require('./messageService');
 const geminiService = require('./geminiService');
 
 class CentralityRankingService {
-  constructor() {
-    this.outputDir = path.join(__dirname, '../../logs/user_score');
-  }
+  constructor() { }
 
   /**
    * 過去N日(デフォルト30日)のUTC範囲を取得
@@ -45,18 +41,6 @@ class CentralityRankingService {
     } catch {
       return null;
     }
-  }
-
-  /**
-   * ファイル名のサニタイズ
-   */
-  sanitizeFileName(name) {
-    if (!name) return 'file';
-    return name
-      .normalize('NFKC')
-      .replace(/[\\/:*?"<>|]/g, '_')
-      .replace(/[\x00-\x1F\x7F]/g, '_')
-      .trim();
   }
 
   /**
@@ -194,64 +178,6 @@ class CentralityRankingService {
     }
 
     return metricsMap;
-  }
-
-  /**
-   * CSVを生成・保存
-   */
-  async saveAsCsv(channel, metricsMap) {
-    await fs.mkdir(this.outputDir, { recursive: true });
-
-    const header = [
-      'user_id',
-      'user_name',
-      'messages_sent',
-      'active_days',
-      'threads_created',
-      'reactions_received',
-      'replies_received',
-      'mentions_received',
-    ];
-
-    const rows = [];
-    rows.push(header.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
-
-    const list = Array.from(metricsMap.values()).map(m => ({
-      userId: m.userId,
-      userName: m.userName || '',
-      messagesSent: m.messagesSent,
-      activeDays: m.activeDays.size,
-      threadsCreated: m.threadsCreated,
-      reactionsReceived: m.reactionsReceived,
-      repliesReceived: m.repliesReceived,
-      mentionsReceived: m.mentionsReceived,
-    }));
-
-    list.sort((a, b) => b.messagesSent - a.messagesSent);
-
-    for (const r of list) {
-      const cols = [
-        r.userId,
-        r.userName,
-        r.messagesSent,
-        r.activeDays,
-        r.threadsCreated,
-        r.reactionsReceived,
-        r.repliesReceived,
-        r.mentionsReceived,
-      ].map(v => `"${String(v).replace(/"/g, '""')}"`);
-      rows.push(cols.join(','));
-    }
-
-    const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-    const stamp = `${jstNow.getUTCFullYear()}${String(jstNow.getUTCMonth() + 1).padStart(2, '0')}${String(jstNow.getUTCDate()).padStart(2, '0')}_${String(jstNow.getUTCHours()).padStart(2, '0')}${String(jstNow.getUTCMinutes()).padStart(2, '0')}`;
-    const safeName = this.sanitizeFileName(channel?.name || `channel_${channel?.id || 'unknown'}`);
-    const fileName = `user_score_${safeName}_${stamp}.csv`;
-    const filePath = path.join(this.outputDir, fileName);
-
-    await fs.writeFile(filePath, rows.join('\n'), 'utf-8');
-    logger.info(`Saved user score CSV: ${filePath}`);
-    return filePath;
   }
 
   /**
@@ -407,20 +333,196 @@ class CentralityRankingService {
   }
 
   /**
-   * ランキングメッセージを作成して送信
-   * @param {import('discord.js').Client} client
+   * 表示用ポイント（各要素の点数と合計）を計算
+   * - 定量は正規化し、重みで100点スケールに換算
+   * - 定性はそのまま重みで100点スケールに換算
+   * @param {Map<string, any>} metricsMap
+   * @param {Map<string, {scores:Object}>} qualitativeMap
+   * @param {Object} weights
+   * @returns {Map<string, {userName:string, parts:Object, total:number}>}
+   */
+  computeDisplayPoints(metricsMap, qualitativeMap, weights = {}) {
+    const defaultWeights = {
+      q_messages: 0.18,
+      q_reactions: 0.18,
+      q_replies: 0.16,
+      q_mentions: 0.10,
+      q_active_days: 0.12,
+      q_threads: 0.06,
+      a_facilitation: 0.06,
+      a_problem_solving: 0.06,
+      a_broker: 0.03,
+      a_engagement: 0.03,
+      a_thread_mgmt: 0.03,
+      a_knowledge: 0.03,
+      a_tone: 0.03,
+      a_execution: 0.03,
+    };
+    const w = { ...defaultWeights, ...weights };
+    const weightSum = Object.values(w).reduce((a, b) => a + b, 0);
+
+    const arr = Array.from(metricsMap.values()).map(m => ({
+      userId: m.userId,
+      messages: m.messagesSent,
+      reactions: m.reactionsReceived,
+      replies: m.repliesReceived,
+      mentions: m.mentionsReceived,
+      activeDays: m.activeDays.size,
+      threads: m.threadsCreated,
+      userName: m.userName || '',
+    }));
+    const norm = (key) => {
+      const vals = arr.map(x => x[key]);
+      const min = Math.min(...vals, 0);
+      const max = Math.max(...vals, 1);
+      const denom = max - min;
+      return (v) => denom === 0 ? 0 : (v - min) / denom;
+    };
+    const nMessages = norm('messages');
+    const nReactions = norm('reactions');
+    const nReplies = norm('replies');
+    const nMentions = norm('mentions');
+    const nDays = norm('activeDays');
+    const nThreads = norm('threads');
+
+    const toPoints = (value, weight) => Math.round((value * weight / weightSum) * 100);
+    const out = new Map();
+
+    for (const q of arr) {
+      const qual = qualitativeMap.get(q.userId)?.scores || {};
+      const parts = {
+        messages: toPoints(nMessages(q.messages), w.q_messages),
+        reactions: toPoints(nReactions(q.reactions), w.q_reactions),
+        replies: toPoints(nReplies(q.replies), w.q_replies),
+        mentions: toPoints(nMentions(q.mentions), w.q_mentions),
+        activeDays: toPoints(nDays(q.activeDays), w.q_active_days),
+        threads: toPoints(nThreads(q.threads), w.q_threads),
+        facilitation: toPoints(qual.facilitation || 0, w.a_facilitation),
+        problem_solving: toPoints(qual.problem_solving || 0, w.a_problem_solving),
+        broker: toPoints(qual.broker || 0, w.a_broker),
+        engagement: toPoints(qual.engagement || 0, w.a_engagement),
+        thread_management: toPoints(qual.thread_management || 0, w.a_thread_mgmt),
+        knowledge: toPoints(qual.knowledge || 0, w.a_knowledge),
+        tone: toPoints(qual.tone || 0, w.a_tone),
+        execution: toPoints(qual.execution || 0, w.a_execution),
+      };
+      const total = Object.values(parts).reduce((a, b) => a + b, 0);
+      out.set(q.userId, { userName: q.userName, parts, total });
+    }
+
+    return out;
+  }
+
+  /**
+   * 送信するメッセージの文面を作成:セクションに分けて配列に格納
+   * (2000文字を超えて複数のメッセージに分かれる際、行の途中で分割されないようにするため)
+   * @param {import('discord.js').TextChannel} channel
+   * @param {{startDate: Date, endDate: Date}} range
+   * @param {string[]} rankedUserIds
+   * @param {Map<string, {userName:string, parts:Object, total:number}>} displayPoints
+   * @returns {string[]} sections
+   */
+  buildRankingSections(channel, range, rankedUserIds, displayPoints) {
+    const fmtDate = (d) => d.toLocaleDateString('ja-JP');
+    const header = `【${channel.name}で中心的なユーザーランキング】\n対象期間: ${fmtDate(range.startDate)} - ${fmtDate(range.endDate)}\n`;
+
+    const labelMap = {
+      messages: 'メッセージ送信',
+      reactions: 'リアクション',
+      replies: '返信',
+      mentions: 'メンション',
+      activeDays: 'アクティブ日数',
+      threads: 'スレッド作成',
+      facilitation: '調整・ファシリテーション',
+      problem_solving: '問題解決・方向付け',
+      broker: '情報ハブ・仲介',
+      engagement: '参加促進・巻き込み',
+      thread_management: 'スレッド運営',
+      knowledge: '知識貢献',
+      tone: 'トーン/秩序維持',
+      execution: '実行駆動',
+    };
+
+    const sections = [header];
+
+    rankedUserIds.forEach((userId, idx) => {
+      const d = displayPoints.get(userId) || { userName: '', parts: {}, total: 0 };
+      const userName = d.userName || `<@${userId}>`;
+      const p = d.parts || {};
+      const lines = [];
+      lines.push(`${idx + 1}. ${userName}: 総合${d.total}点`);
+      lines.push(`    - ${labelMap.messages}: ${p.messages ?? 0}点`);
+      lines.push(`    - ${labelMap.reactions}: ${p.reactions ?? 0}点`);
+      lines.push(`    - ${labelMap.replies}: ${p.replies ?? 0}点`);
+      lines.push(`    - ${labelMap.mentions}: ${p.mentions ?? 0}点`);
+      lines.push(`    - ${labelMap.activeDays}: ${p.activeDays ?? 0}点`);
+      lines.push(`    - ${labelMap.threads}: ${p.threads ?? 0}点`);
+      lines.push(`    - ${labelMap.facilitation}: ${p.facilitation ?? 0}点`);
+      lines.push(`    - ${labelMap.problem_solving}: ${p.problem_solving ?? 0}点`);
+      lines.push(`    - ${labelMap.broker}: ${p.broker ?? 0}点`);
+      lines.push(`    - ${labelMap.engagement}: ${p.engagement ?? 0}点`);
+      lines.push(`    - ${labelMap.thread_management}: ${p.thread_management ?? 0}点`);
+      lines.push(`    - ${labelMap.knowledge}: ${p.knowledge ?? 0}点`);
+      lines.push(`    - ${labelMap.tone}: ${p.tone ?? 0}点`);
+      lines.push(`    - ${labelMap.execution}: ${p.execution ?? 0}点`);
+      sections.push(lines.join('\n'));
+    });
+
+    return sections;
+  }
+
+  /**
+   * 送信するメッセージの文面を作成: セクション配列をDiscord用メッセージサイズにチャンク分割
+   * @param {string[]} sections
+   * @param {number} maxLen
+   * @returns {string[]}
+   */
+  splitSectionsIntoChunks(sections, maxLen = 1900) {
+    const chunks = [];
+    let cur = '';
+    for (const section of sections) {
+      const candidate = cur.length === 0 ? section : `${cur}\n\n${section}`;
+      if (candidate.length > maxLen) {
+        if (cur.length > 0) chunks.push(cur);
+        cur = section;
+      } else {
+        cur = candidate;
+      }
+    }
+    if (cur.length > 0) chunks.push(cur);
+    return chunks;
+  }
+
+  /**
+   * 送信するメッセージの文面を作成: セクション配列をDiscord用メッセージサイズにチャンク分割
    * @param {import('discord.js').TextChannel} channel
    * @param {{startDate: Date, endDate: Date}} range
    * @param {Map<string, {mixedScore:number, quantitative:Object, qualitative:Object}>} mixed
    * @param {Map<string, any>} metricsMap
    * @param {Map<string, {scores:Object}>} qualitativeMap
    * @param {Object} weights
+   * @returns {string[]} chunks
    */
-  async sendRankingMessage(client, channel, range, mixed, metricsMap, qualitativeMap, weights = {}) {
+  createRankingMessageChunks(channel, range, mixed, metricsMap, qualitativeMap, weights = {}) {
+    const displayPoints = this.computeDisplayPoints(metricsMap, qualitativeMap, weights);
+    const rankedIds = Array.from(mixed.entries())
+      .sort((a, b) => b[1].mixedScore - a[1].mixedScore)
+      .slice(0, 10)
+      .map(([userId]) => userId);
+    const sections = this.buildRankingSections(channel, range, rankedIds, displayPoints);
+    return this.splitSectionsIntoChunks(sections, 1900);
+  }
+
+  /**
+   * ランキングメッセージを送信
+   * @param {import('discord.js').Client} client
+   * @param {string[]} chunks
+   */
+  async sendRankingChunks(client, chunks) {
     try {
       const exportChannelId = config.logsExport.exportChannelId;
       if (!exportChannelId) {
-        logger.warn('LOG_EXPORT_CHANNEL_ID is not configured for user-score ranking');
+        logger.warn('LOG_EXPORT_CHANNEL_ID is not configured for centrality ranking');
         return;
       }
       const exportChannel = await client.channels.fetch(exportChannelId).catch(() => null);
@@ -428,149 +530,20 @@ class CentralityRankingService {
         logger.warn(`Export channel not available: ${exportChannelId}`);
         return;
       }
-
-      const defaultWeights = {
-        q_messages: 0.18,
-        q_reactions: 0.18,
-        q_replies: 0.16,
-        q_mentions: 0.10,
-        q_active_days: 0.12,
-        q_threads: 0.06,
-        a_facilitation: 0.06,
-        a_problem_solving: 0.06,
-        a_broker: 0.03,
-        a_engagement: 0.03,
-        a_thread_mgmt: 0.03,
-        a_knowledge: 0.03,
-        a_tone: 0.03,
-        a_execution: 0.03,
-      };
-      const w = { ...defaultWeights, ...weights };
-      const weightSum = Object.values(w).reduce((a, b) => a + b, 0);
-
-      // 正規化を再計算（computeMixedScores と同一手順）
-      const arr = Array.from(metricsMap.values()).map(m => ({
-        userId: m.userId,
-        messages: m.messagesSent,
-        reactions: m.reactionsReceived,
-        replies: m.repliesReceived,
-        mentions: m.mentionsReceived,
-        activeDays: m.activeDays.size,
-        threads: m.threadsCreated,
-        userName: m.userName || '',
-      }));
-      const norm = (key) => {
-        const vals = arr.map(x => x[key]);
-        const min = Math.min(...vals, 0);
-        const max = Math.max(...vals, 1);
-        const denom = max - min;
-        return (v) => denom === 0 ? 0 : (v - min) / denom;
-      };
-      const nMessages = norm('messages');
-      const nReactions = norm('reactions');
-      const nReplies = norm('replies');
-      const nMentions = norm('mentions');
-      const nDays = norm('activeDays');
-      const nThreads = norm('threads');
-
-      const idToName = new Map(arr.map(x => [x.userId, x.userName]));
-
-      const fmtDate = (d) => d.toLocaleDateString('ja-JP');
-      const header = `【${channel.name}で中心的なユーザーランキング】\n対象期間: ${fmtDate(range.startDate)} - ${fmtDate(range.endDate)}\n`;
-
-      // 上位10名
-      const ranked = Array.from(mixed.entries()).sort((a, b) => b[1].mixedScore - a[1].mixedScore).slice(0, 10);
-
-      const labelMap = {
-        messages: 'メッセージ送信',
-        reactions: 'リアクション',
-        replies: '返信',
-        mentions: 'メンション',
-        activeDays: 'アクティブ日数',
-        threads: 'スレッド作成',
-        facilitation: '調整・ファシリテーション',
-        problem_solving: '問題解決・方向付け',
-        broker: '情報ハブ・仲介',
-        engagement: '参加促進・巻き込み',
-        thread_management: 'スレッド運営',
-        knowledge: '知識貢献',
-        tone: 'トーン/秩序維持',
-        execution: '実行駆動',
-      };
-
-      const toPoints = (value, weight) => Math.round((value * weight / weightSum) * 100);
-
-      const entryLines = [];
-      ranked.forEach(([userId, data], idx) => {
-        const quant = arr.find(x => x.userId === userId) || { messages: 0, reactions: 0, replies: 0, mentions: 0, activeDays: 0, threads: 0 };
-        const qual = qualitativeMap.get(userId)?.scores || {};
-
-        const parts = {
-          messages: toPoints(nMessages(quant.messages), w.q_messages),
-          reactions: toPoints(nReactions(quant.reactions), w.q_reactions),
-          replies: toPoints(nReplies(quant.replies), w.q_replies),
-          mentions: toPoints(nMentions(quant.mentions), w.q_mentions),
-          activeDays: toPoints(nDays(quant.activeDays), w.q_active_days),
-          threads: toPoints(nThreads(quant.threads), w.q_threads),
-          facilitation: toPoints(qual.facilitation || 0, w.a_facilitation),
-          problem_solving: toPoints(qual.problem_solving || 0, w.a_problem_solving),
-          broker: toPoints(qual.broker || 0, w.a_broker),
-          engagement: toPoints(qual.engagement || 0, w.a_engagement),
-          thread_management: toPoints(qual.thread_management || 0, w.a_thread_mgmt),
-          knowledge: toPoints(qual.knowledge || 0, w.a_knowledge),
-          tone: toPoints(qual.tone || 0, w.a_tone),
-          execution: toPoints(qual.execution || 0, w.a_execution),
-        };
-        const total = Object.values(parts).reduce((a, b) => a + b, 0);
-        const userName = idToName.get(userId) || `<@${userId}>`;
-
-        const lines = [];
-        lines.push(`${idx + 1}. ${userName}: 総合${total}点`);
-        lines.push(`    - ${labelMap.messages}: ${parts.messages}点`);
-        lines.push(`    - ${labelMap.reactions}: ${parts.reactions}点`);
-        lines.push(`    - ${labelMap.replies}: ${parts.replies}点`);
-        lines.push(`    - ${labelMap.mentions}: ${parts.mentions}点`);
-        lines.push(`    - ${labelMap.activeDays}: ${parts.activeDays}点`);
-        lines.push(`    - ${labelMap.threads}: ${parts.threads}点`);
-        lines.push(`    - ${labelMap.facilitation}: ${parts.facilitation}点`);
-        lines.push(`    - ${labelMap.problem_solving}: ${parts.problem_solving}点`);
-        lines.push(`    - ${labelMap.broker}: ${parts.broker}点`);
-        lines.push(`    - ${labelMap.engagement}: ${parts.engagement}点`);
-        lines.push(`    - ${labelMap.thread_management}: ${parts.thread_management}点`);
-        lines.push(`    - ${labelMap.knowledge}: ${parts.knowledge}点`);
-        lines.push(`    - ${labelMap.tone}: ${parts.tone}点`);
-        lines.push(`    - ${labelMap.execution}: ${parts.execution}点`);
-        entryLines.push(lines.join('\n'));
-      });
-
-      // 送信（Discordの2000文字制限に合わせて分割）
-      const chunks = [];
-      let cur = header;
-      for (const entry of entryLines) {
-        const candidate = cur.length === 0 ? entry : `${cur}\n\n${entry}`;
-        if (candidate.length > 1900) { // 余裕を持って分割
-          chunks.push(cur);
-          cur = entry;
-        } else {
-          cur = candidate;
-        }
-      }
-      if (cur.length > 0) chunks.push(cur);
-
       for (const chunk of chunks) {
         await exportChannel.send({ content: chunk });
       }
     } catch (e) {
-      logger.error('Failed to send ranking message:', e);
+      logger.error('Failed to send ranking chunks:', e);
     }
   }
 
   /**
-   * 環境変数のチャンネルで30日集計してCSV保存し、AI混合スコアも算出してログ出力
+   * 環境変数で指定したチャンネルにおいてユーザーの活動を分析し、ランキングを生成して投稿
    * @param {import('discord.js').Client} client
    * @param {number} days
    */
-  async exportForEnvChannel(client, days = 30) {
+  async computeAndSend(client, days = 30) {
     try {
       const channelId = config.channels.userScoreTargetChannelId;
       if (!channelId) {
@@ -582,13 +555,13 @@ class CentralityRankingService {
         throw new Error(`Target channel not found or not text-based: ${channelId}`);
       }
 
+      // 日付範囲
       const { startDate, endDate } = this.getDateRange(days);
+      // 定量スコアを集計
       const metricsMap = await this.collectMetricsForChannel(channel, startDate, endDate);
-      const filePath = await this.saveAsCsv(channel, metricsMap);
-
-      // 定性AIスコア
+      // 定性AIスコアを算出
       const qualitative = await this.evaluateQualitativeScores(channel, startDate, endDate, metricsMap);
-      // 混合スコア
+      // 混合スコアを算出
       const mixed = this.computeMixedScores(metricsMap, qualitative);
 
       // ログ出力（上位を簡易表示）
@@ -598,12 +571,13 @@ class CentralityRankingService {
         logger.info(`#${i + 1} ${uid} score=${data.mixedScore} q={msg:${data.quantitative.messages}, react:${data.quantitative.reactions}, repl:${data.quantitative.replies}, men:${data.quantitative.mentions}, days:${data.quantitative.activeDays}, th:${data.quantitative.threads}} a=${JSON.stringify(data.qualitative.scores || {})}`);
       });
 
-      // Discordへランキング送信
-      await this.sendRankingMessage(client, channel, { startDate, endDate }, mixed, metricsMap, qualitative);
+      // ランキング文面の作成と送信
+      const chunks = this.createRankingMessageChunks(channel, { startDate, endDate }, mixed, metricsMap, qualitative);
+      await this.sendRankingChunks(client, chunks);
 
-      return { filePath, startDate, endDate, channel, mixedScores: mixed };
+      return { startDate, endDate, channel, mixedScores: mixed };
     } catch (e) {
-      logger.error('Failed to export user score CSV:', e);
+      logger.error('Failed to compute and post centrality ranking:', e);
       throw e;
     }
   }

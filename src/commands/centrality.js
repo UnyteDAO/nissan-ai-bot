@@ -21,14 +21,14 @@ module.exports = {
       const days = interaction.options.getInteger('days') || 30;
       const client = interaction.client;
 
-      const { filePath, startDate, endDate, channel } = await centralityRankingService.exportForEnvChannel(client, days);
+      const { startDate, endDate, channel } = await centralityRankingService.computeAndSend(client, days);
 
       await interaction.editReply({
-        content: `✅ ユーザースコアCSVを生成しました\n対象チャンネル: <#${channel.id}>\n期間: ${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')}\n出力: ${filePath}`,
+        content: `✅ 中心性ランキングを投稿しました\n対象チャンネル: <#${channel.id}>\n期間: ${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')}`,
       });
     } catch (error) {
-      logger.error('Error in /user-score command:', error);
-      const msg = error?.message || 'CSV生成に失敗しました。設定と権限を確認してください。';
+      logger.error('Error in /centrality command:', error);
+      const msg = error?.message || 'ランキング投稿に失敗しました。設定と権限を確認してください。';
       if (interaction.deferred) {
         await interaction.editReply({ content: `❌ ${msg}` });
       } else {
