@@ -799,7 +799,6 @@ ${prompt}`;
           messageCount: messageLines.length,
         });
       }
-      logger.info(`🐼response: ${responseText}`);
 
       // APIログ
       apiLogId = await apiLogModel.logApiCall({
@@ -835,7 +834,6 @@ ${prompt}`;
       }
 
       const parsed = this.parseUserCentralityResponse(responseText);
-      logger.info(`🐼parsed: ${JSON.stringify(parsed)}`);
       return parsed;
     } catch (error) {
       logger.error('Error evaluating user centrality:', error);
