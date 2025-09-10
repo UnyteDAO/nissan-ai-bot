@@ -254,22 +254,22 @@ class CentralityRankingService {
    */
   computeMixedScores(metricsMap, qualitativeMap, weights = {}) {
     const defaultWeights = {
-      // 定量
-      q_messages: 0.18,
-      q_reactions: 0.18,
-      q_replies: 0.16,
-      q_mentions: 0.10,
-      q_active_days: 0.12,
-      q_threads: 0.06,
-      // 定性
-      a_facilitation: 0.06,
-      a_problem_solving: 0.06,
-      a_broker: 0.03,
-      a_engagement: 0.03,
-      a_thread_mgmt: 0.03,
-      a_knowledge: 0.03,
-      a_tone: 0.03,
-      a_execution: 0.03,
+      // 定量スコア 20%
+      q_messages: 0.03,
+      q_reactions: 0.03,
+      q_replies: 0.04,
+      q_mentions: 0.04,
+      q_active_days: 0.02,
+      q_threads: 0.04,
+      // 定性スコア 80%
+      a_facilitation: 0.15,
+      a_problem_solving: 0.14,
+      a_broker: 0.08,
+      a_engagement: 0.14,
+      a_thread_mgmt: 0.08,
+      a_knowledge: 0.08,
+      a_tone: 0.07,
+      a_execution: 0.06,
     };
     const w = { ...defaultWeights, ...weights };
 
@@ -343,20 +343,22 @@ class CentralityRankingService {
    */
   computeDisplayPoints(metricsMap, qualitativeMap, weights = {}) {
     const defaultWeights = {
-      q_messages: 0.18,
-      q_reactions: 0.18,
-      q_replies: 0.16,
-      q_mentions: 0.10,
-      q_active_days: 0.12,
-      q_threads: 0.06,
-      a_facilitation: 0.06,
-      a_problem_solving: 0.06,
-      a_broker: 0.03,
-      a_engagement: 0.03,
-      a_thread_mgmt: 0.03,
-      a_knowledge: 0.03,
-      a_tone: 0.03,
-      a_execution: 0.03,
+      // 定量スコア 20%
+      q_messages: 0.03,
+      q_reactions: 0.03,
+      q_replies: 0.04,
+      q_mentions: 0.04,
+      q_active_days: 0.02,
+      q_threads: 0.04,
+      // 定性スコア 80%
+      a_facilitation: 0.15,
+      a_problem_solving: 0.14,
+      a_broker: 0.08,
+      a_engagement: 0.14,
+      a_thread_mgmt: 0.08,
+      a_knowledge: 0.08,
+      a_tone: 0.07,
+      a_execution: 0.06,
     };
     const w = { ...defaultWeights, ...weights };
     const weightSum = Object.values(w).reduce((a, b) => a + b, 0);
